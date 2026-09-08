@@ -25,13 +25,19 @@ const PAD_DEPTH = 0.31;
  * leaves a margin at both the riser and the front edge.
  */
 const PAD_X = -0.2;
-const PAD_Z = -68.9;
+const PAD_Z = -67.5;
 
 /** The pad reads darker than the keyboard mat — a tint over the same felt. */
 const PAD_TINT = 0x9a9aa0;
 
+/** Set down by hand like the mouse on it, so not quite square to the desk. */
+const PAD_TILT = THREE.MathUtils.degToRad(-2.8);
+
 /** Set down by hand, not aligned to the desk. */
-const MOUSE_TILT = THREE.MathUtils.degToRad(-12);
+const MOUSE_TILT = THREE.MathUtils.degToRad(19.3);
+
+/** Where it was left on the pad, measured from the pad's own centre. */
+const MOUSE_OFFSET = new THREE.Vector2(0.8, 3.5);
 
 /** Apple's published size, in metres — see the note on the per-axis fit below. */
 const MM_LENGTH = 0.1135; // front to back, the nose at -z
@@ -67,13 +73,20 @@ export async function addMouseArea(parent, desk) {
   pad.name = 'Mouse_mat';
   pad.scale.setScalar(SCALE);
   seat(parent, pad, new THREE.Vector3(centre.x + PAD_X, deskBox.max.y, PAD_Z));
+  // Turned after seating, so it pivots where it lies rather than shifting the spot above.
+  pad.rotation.y = PAD_TILT;
+  pad.updateMatrixWorld(true);
 
   const mouse = await loadMouse();
   mouse.rotation.y = MOUSE_TILT;
 
   const padBox = new THREE.Box3().setFromObject(pad);
   const padCentre = padBox.getCenter(new THREE.Vector3());
-  seat(parent, mouse, new THREE.Vector3(padCentre.x, padBox.max.y, padCentre.z));
+  seat(parent, mouse, new THREE.Vector3(
+    padCentre.x + MOUSE_OFFSET.x,
+    padBox.max.y,
+    padCentre.z + MOUSE_OFFSET.y
+  ));
 
   return { pad, mouse };
 }

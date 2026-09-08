@@ -3,7 +3,15 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { setupEnvironment } from './environment.js';
 import { loadModel } from './loadModel.js';
 import { setupDebugPanel } from './debugPanel.js';
+import { setupEditor } from './editor.js';
+import { setupResume } from './resume/index.js';
 import { ui } from './overlay.js';
+
+// The room has two modes. By default it is a resume: the props themselves are the
+// interface, and clicking one opens a section. `?debug` swaps that for the authoring tools — the
+// wireframe/grid panel and the drag-a-prop editor the scene was arranged with.
+const DEBUG = new URLSearchParams(window.location.search).has('debug');
+document.body.classList.toggle('is-debug', DEBUG);
 
 // The viewport can report 0 while the page is still hidden (e.g. an embedded
 // preview pane), which would poison camera.aspect with NaN — always clamp to 1.
@@ -33,12 +41,18 @@ controls.dampingFactor = 0.06;
 controls.autoRotateSpeed = 0.8;
 
 const environment = setupEnvironment(scene, renderer);
-const stats = setupDebugPanel({ scene, controls, grid: environment.grid });
+const stats = DEBUG ? setupDebugPanel({ scene, camera, controls, environment }) : null;
 
 // The shadow map is cached (see environment.js), so it is drawn once the room and
 // every prop it loads have settled — all of which the promise waits on.
-loadModel({ scene, camera, controls, environment, ui }).then(() => {
+// Both the editor and the resume's anchors are built from the props the scene
+// actually ended up with, so neither can be set up before the load resolves.
+let resume = null;
+loadModel({ scene, camera, controls, environment, ui }).then((model) => {
   environment.refreshShadows();
+  if (!model) return;
+  if (DEBUG) setupEditor({ scene, camera, renderer, controls, model, environment });
+  else resume = setupResume({ scene, camera, renderer, controls, model });
 });
 
 function handleResize() {
@@ -53,10 +67,14 @@ window.addEventListener('resize', handleResize);
 new ResizeObserver(handleResize).observe(document.body);
 
 renderer.setAnimationLoop(() => {
+  // Before `controls.update()`: a flight writes the camera position that the damping
+  // in `controls` then settles.
+  resume?.update();
   controls.update();
   renderer.render(scene, camera);
-  stats.update();
+  stats?.update();
 });
 
-// Handy for debugging from the browser console.
-window.__viewer = { renderer, scene, camera, controls };
+// Handy for debugging from the browser console. `resume` is filled in once the room
+// has loaded, and stays null in `?debug` mode.
+window.__viewer = { renderer, scene, camera, controls, get resume() { return resume; } };

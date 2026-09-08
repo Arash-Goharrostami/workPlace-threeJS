@@ -57,6 +57,13 @@ const DESK_GAP = 4;
 const NUDGE = new THREE.Vector2(-49, -23);
 
 /**
+ * A slight turn off the room's axis, set by hand in edit mode — a rug laid by a person
+ * is never quite square to the desk. Applied after it is laid, so it turns in place and
+ * leaves the position NUDGE settled on alone.
+ */
+const YAW = THREE.MathUtils.degToRad(-2.4);
+
+/**
  * The overall level, multiplied into the base map — 1 would be the rug as its
  * conversion left it. The source project explains the number: the pattern arrived
  * averaging 208 out of 255, near enough paper, and needed pulling down hard for a room
@@ -99,6 +106,8 @@ export async function addCarpet(parent, chair, floor, desk) {
   carpet.updateMatrixWorld(true);
 
   layOnFloor(carpet, chair, floor, desk);
+  carpet.rotation.y = YAW;
+  carpet.updateMatrixWorld(true);
 
   return carpet;
 }

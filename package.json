@@ -8,8 +8,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "convert": "bash scripts/convert-usdz.sh",
+    "strip": "node scripts/strip-glb-image.mjs",
     "textures": "bash scripts/extract-desk-textures.sh",
     "apple": "bash scripts/import-apple-models.sh",
+    "split": "bash scripts/split-display-mount.sh",
     "wall": "python3 scripts/extract-wall-texture.py",
     "floor": "bash scripts/copy-floor-tiles.sh"
   },

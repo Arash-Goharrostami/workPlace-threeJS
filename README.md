@@ -1,6 +1,7 @@
 # Workplace 3D Viewer
 
-A [three.js](https://threejs.org) viewer for `tmp/Workplace.usdz`, built with Vite.
+A [three.js](https://threejs.org) room — Arash Goharrostami's workspace, modelled from
+`tmp/Workplace.usdz` and readable as a resume. Built with Vite.
 
 ## Run it
 
@@ -9,9 +10,51 @@ npm install
 npm run dev
 ```
 
-Then open the URL Vite prints. `npm run build` produces a static bundle in `dist/`
+Then open the URL Vite prints. Add `?debug` to the URL for the authoring tools
+instead (see [Two modes](#two-modes)). `npm run build` produces a static bundle in `dist/`
 (relative asset paths, so it can be hosted from any subdirectory), and
 `npm run preview` serves that build.
+
+## Two modes
+
+The page boots as a **resume**: nine props stand in for the nine sections of a CV.
+Nothing is drawn on top of them — hovering a readable prop lifts it out of the room's
+dark palette and names it in the HUD, and clicking it (or a button in the dock) flies
+the camera to it and slides that section in beside it.
+Escape or the back button returns to the full room. Everything under `src/resume/`
+serves this mode and nothing else.
+
+Which prop carries which section is the table at the top of `src/resume/anchors.js`:
+
+| Section | Prop |
+| --- | --- |
+| About | `Guitar_on_stand` |
+| Experience | `Pro_Display_XDR` |
+| Stack | `MacBook_Pro_16` |
+| Projects | `Mac_Pro` |
+| Education | `Apple_Watch_SE` |
+| Writing | `iPad_Pro` |
+| References | `AirPods_Max` |
+| CV | `3D_printer` |
+| Contact | `iPhone_15_Pro` |
+
+No camera position in that table is hardcoded. Every prop in this scene is *placed* by
+its own module off the desk's or a wall's live bounds, so a typed-in coordinate would
+drift the first time a desk constant changed. An anchor names a prop instead, and its
+label position and camera framing are computed from that prop's world bounding box at
+load time. Moving a prop needs no change here; renaming one does.
+
+An anchor whose prop failed to load is dropped, along with its dock button and its
+panel — each prop module swallows its own failures, so any one of them can
+legitimately be missing.
+
+The CV button looks for `public/cv/Arash-Goharrostami.pdf`, which is not committed —
+drop the file there to arm it. The copy itself lives in `src/resume/content.js`, as
+data rather than markup; `src/resume/panels.js` is the only thing that reads it.
+
+`?debug` swaps all of the above for the tools the scene was arranged with: the
+wireframe / grid / FPS panel and the drag-a-prop editor. Neither mode is wired when the
+other is running.
 
 ## The models
 
@@ -24,6 +67,7 @@ npm run convert          # every tmp/*.usdz
 npm run convert -- Desk  # just one
 npm run textures         # the desk's PBR maps, from the Computer Workspace Pack
 npm run apple            # the MacBook Pro 16, Pro Display XDR, printer, guitar, rug, iPad/Pencil/Watch + Draco decoder
+npm run split            # separates the Pro Display XDR's mount — re-run after `npm run apple`
 npm run wall             # the walls' concrete map, from Gallery_bare_concrete_wall.usdz
 npm run floor            # the floor's ceramic tiles, from the WorkDesk3D project
 ```
@@ -33,6 +77,12 @@ folder travels with its `scene.usdc`), imports it in Blender
 (`/Applications/Blender.app`, override with `BLENDER=/path/to/blender`) and exports
 `public/models/<Name>.glb`. Re-run it whenever a source `.usdz` changes. The
 generated GLBs are committed so the viewer runs without Blender installed.
+
+`npm run split` is the one step that edits a model rather than importing it, and it has
+to be re-run after `npm run apple` puts the untouched file back. It gives the Pro
+Display XDR's mount a node of its own for the portrait display to pivot its turn on,
+and repairs the stand's normals. Both are explained in that script's own header. Everything about why it is done in Blender rather than at load
+time is in that script's own header.
 
 The desk's own materials come from a third model — the Computer Workspace Pack in
 the WorkDesk3D project. `npm run textures` copies its `Dark_Wood_Final` (tabletop)
@@ -61,8 +111,9 @@ the old chair's container: that container is a nested Sketchfab import carrying 
 | `src/clearProps.js` | Empties the room down to desk, chair and shell |
 | `src/deskAccessories.js` | Procedural monitor riser and laptop stand on the desk |
 | `src/macbook.js` | Loads the MacBook Pro 16 and seats it on the stand |
-| `src/proDisplay.js` | Loads the Pro Display XDR and stands it on the riser |
+| `src/proDisplay.js` | Loads both Pro Display XDRs — one on the riser, one turned portrait in the desk's corner |
 | `src/printer.js` | Loads the 3D printer and stands it on the desk's right arm |
+| `src/floorSocket.js` | Loads the floor socket, seats its back box, centres and uprights it, stands it beside the printer |
 | `src/deskApple.js` | Lays the iPad, iPhone, Watch and Pencil in front of the display |
 | `src/iphone15Pro.js` | The iPhone 15 Pro, built in code — screen, icons and clock |
 | `src/blind.js` | Loads the roller blind and fits it to the window |
@@ -76,6 +127,13 @@ the old chair's container: that container is a nested Sketchfab import carrying 
 | `src/wallMaterials.js` | Dresses the room's walls in bare concrete |
 | `src/floorMaterial.js` | Lays WorkDesk3D's ceramic tiles across the floor |
 | `src/materials.js` | Shared `materialsOf()` helper |
-| `src/debugPanel.js` | Wireframe / grid / auto-rotate / FPS toggles |
+| `src/resume/index.js` | Resume mode: sequences the four modules below |
+| `src/resume/content.js` | Every word the room says, as data |
+| `src/resume/anchors.js` | Which prop is which section, framed off its live bounds |
+| `src/resume/flight.js` | Eased camera travel, lens shift and orbit clamping |
+| `src/resume/picking.js` | Hover glow and click-to-open on the props themselves |
+| `src/resume/panels.js` | Builds the reading sidebar from `content.js` |
+| `src/debugPanel.js` | Wireframe / grid / auto-rotate / FPS toggles (`?debug`) |
 | `src/overlay.js` | Load progress and error messages |
+| `scripts/split-display-mount.py` | Gives the Pro Display XDR's mount its own node, and repairs the stand's normals |
 | `scripts/` | USDZ → GLB conversion |

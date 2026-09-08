@@ -20,10 +20,17 @@ const SCALE = 100;
  * box the swap hands over, which is the desk *before* its corner patch widens it —
  * so this is smaller than the gap that actually appears on screen.
  */
-const SIDE_GAP = 37;
+const SIDE_GAP = 27.5;
 
-/** How far in front of the desk's back edge the stand sits. */
-const FRONT_GAP = 54;
+/**
+ * How far in front of the desk's back edge the stand sits. Both gaps are read off the
+ * stand's footprint centre, which the turn below swings a little, so they are a
+ * fraction under the distance the stand looks to have moved.
+ */
+const FRONT_GAP = 38.3;
+
+/** Turned off square, so it leans towards the desk rather than facing straight out. */
+const STAND_YAW = THREE.MathUtils.degToRad(-21.9);
 
 /**
  * Loads the guitar and stands it on the floor beside the desk. Placed relative to the
@@ -43,8 +50,9 @@ export async function addGuitar(parent, deskBox, floor) {
     node.receiveShadow = true;
   });
 
-  // No rotation: the model's soundboard already faces +z, which here is into the room
-  // rather than at the back wall.
+  // The soundboard faces +z as authored — into the room rather than at the back wall
+  // — and this swings it round a little further towards the desk.
+  guitar.rotation.y = STAND_YAW;
 
   // Parented before measuring: the model root carries an offset, so a box taken while
   // the guitar is still detached would be in the wrong frame.
@@ -61,7 +69,11 @@ export async function addGuitar(parent, deskBox, floor) {
 function standOnFloor(guitar, deskBox, floor) {
   const floorY = new THREE.Box3().setFromObject(floor).max.y;
 
-  const box = new THREE.Box3().setFromObject(guitar);
+  // `precise`: the model's inner nodes carry their own rotations, and the cheap path
+  // unions their transformed bounding *boxes*, which reach several centimetres below
+  // the guitar itself. Dropping that phantom minimum onto the floor left the stand
+  // hanging in the air.
+  const box = new THREE.Box3().setFromObject(guitar, true);
   const center = box.getCenter(new THREE.Vector3());
 
   const target = new THREE.Vector3(

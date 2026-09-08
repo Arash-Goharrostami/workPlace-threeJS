@@ -3,51 +3,304 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Workplace — 3D Viewer</title>
+    <title>Arash Goharrostami — Software Engineer</title>
+    <meta
+      name="description"
+      content="The workspace of Arash Goharrostami, software engineer — a 3D room you can read as a resume."
+    />
     <style>
-      :root { color-scheme: dark; }
+      :root {
+        color-scheme: dark;
+        --bg: #0d0f13;
+        --panel: rgba(18, 21, 27, .93);
+        --chrome: rgba(24, 27, 33, .82);
+        --line: #2f3542;
+        --line-soft: #232833;
+        --ink: #e7e9ee;
+        --ink-dim: #98a1b2;
+        --ink-faint: #7d8595;
+        --accent: #6ea8fe;
+        --accent-soft: rgba(110, 168, 254, .14);
+        --ease: cubic-bezier(.22, 1, .36, 1);
+      }
       * { box-sizing: border-box; }
-      html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0f13; }
-      body { font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #e7e9ee; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); }
+      body {
+        font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
       canvas { display: block; }
+      a { color: var(--accent); }
+
+      /* ------------------------------------------------------------ loading */
 
       #overlay {
-        position: fixed; inset: 0; display: grid; place-content: center; gap: 12px;
-        background: #0d0f13; text-align: center; transition: opacity .4s ease;
+        position: fixed; inset: 0; z-index: 90; display: grid; place-content: center; gap: 12px;
+        background: var(--bg); text-align: center; transition: opacity .4s ease;
       }
       #overlay.hidden { opacity: 0; pointer-events: none; }
       #overlay.error #bar-track { display: none; }
       #overlay-text { letter-spacing: .02em; }
       #overlay.error #overlay-text { color: #ff8080; max-width: 42ch; }
       #bar-track { width: 220px; height: 3px; background: #2a2e37; border-radius: 2px; overflow: hidden; }
-      #bar { height: 100%; width: 0; background: #6ea8fe; transition: width .2s ease; }
+      #bar { height: 100%; width: 0; background: var(--accent); transition: width .2s ease; }
+
+      /* ------------------------------------------------------ intro, dock, HUD */
+
+      #intro {
+        position: fixed; left: 40px; top: 46px; z-index: 12; max-width: 30ch;
+        transition: opacity .5s ease;
+      }
+      #intro h1 { margin: 0 0 14px; font-size: 40px; line-height: 1.06; letter-spacing: -.02em; font-weight: 600; }
+      #intro p { margin: 0; color: var(--ink-dim); font-size: 13.5px; line-height: 1.65; }
+      #intro-hint { margin-top: 16px !important; color: var(--ink-faint) !important; font-size: 12px !important; }
+
+      #dock {
+        position: fixed; left: 40px; bottom: 34px; z-index: 12; display: flex; flex-wrap: wrap; gap: 7px;
+        max-width: min(560px, calc(100vw - 80px)); transition: opacity .5s ease;
+      }
+      .nav-btn {
+        padding: 6px 13px; font: inherit; color: var(--ink-dim); cursor: pointer;
+        background: var(--chrome); border: 1px solid var(--line-soft); border-radius: 999px;
+        backdrop-filter: blur(8px); transition: color .2s ease, border-color .2s ease;
+      }
+      .nav-btn:hover { color: var(--ink); border-color: var(--accent); }
+
+      #hud {
+        position: fixed; right: 18px; top: 18px; z-index: 12; text-align: right;
+        font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint);
+      }
+      #hud-view { color: var(--ink-dim); }
+
+      #back {
+        position: fixed; left: 24px; top: 22px; z-index: 20; display: none;
+        padding: 7px 15px; font: inherit; color: var(--ink); cursor: pointer;
+        background: var(--chrome); border: 1px solid var(--line); border-radius: 999px;
+        backdrop-filter: blur(8px);
+      }
+      #back:hover { border-color: var(--accent); }
+
+      #hint {
+        position: fixed; left: 40px; bottom: 12px; z-index: 11; color: var(--ink-faint);
+        font-size: 11.5px; transition: opacity .4s ease;
+      }
+
+      /* ------------------------------------------------------- reading panels */
+
+      #panels { position: fixed; inset: 0; z-index: 15; pointer-events: none; }
+      .panel {
+        position: absolute; right: 0; top: 0; bottom: 0; width: min(540px, 94vw);
+        overflow-y: auto; overscroll-behavior: contain; padding: 44px 40px 110px;
+        background: var(--panel); backdrop-filter: blur(16px); border-left: 1px solid var(--line);
+        transform: translateX(100%); opacity: 0; pointer-events: none;
+        transition: transform .55s var(--ease), opacity .45s ease;
+      }
+      .panel.is-open { transform: translateX(0); opacity: 1; pointer-events: auto; }
+      .panel::-webkit-scrollbar { width: 6px; }
+      .panel::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+
+      /* Each block slides up a beat after the one above it, so the panel assembles
+         rather than appearing all at once. */
+      @keyframes item-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+      .panel > * { opacity: 0; }
+      .panel.is-open > * { animation: item-in .5s var(--ease) both; }
+      .panel.is-open > *:nth-child(2) { animation-delay: 60ms; }
+      .panel.is-open > *:nth-child(3) { animation-delay: 120ms; }
+      .panel.is-open > *:nth-child(4) { animation-delay: 180ms; }
+      .panel.is-open > *:nth-child(n+5) { animation-delay: 240ms; }
+
+      .panel-eyebrow {
+        margin-bottom: 12px; font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+        color: var(--accent);
+      }
+      .panel-title { margin: 0 0 22px; font-size: 30px; line-height: 1.12; letter-spacing: -.02em; font-weight: 600; }
+      .panel-text { margin: 0 0 14px; color: var(--ink-dim); font-size: 13.5px; line-height: 1.72; }
+      .panel-intro, .panel-footnote, .panel-note {
+        margin: 0 0 18px; color: var(--ink-faint); font-size: 12.5px; line-height: 1.65;
+      }
+      .panel-footnote, .panel-note { margin: 20px 0 0; }
+
+      .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin-top: 26px; background: var(--line-soft); border: 1px solid var(--line-soft); }
+      .stat-cell { padding: 14px 16px; background: rgba(255, 255, 255, .015); }
+      .stat-label { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); }
+      .stat-value { margin-top: 5px; font-size: 15px; }
+      .stat-value.is-accent { color: var(--accent); }
+
+      .timeline { display: grid; gap: 30px; }
+      .timeline-item { padding-left: 18px; border-left: 1px solid var(--line-soft); }
+      .timeline-date { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+      .timeline-role { margin: 7px 0 3px; font-size: 15.5px; font-weight: 600; }
+      .timeline-org { color: var(--ink-faint); font-size: 12.5px; }
+      .timeline-list { margin: 12px 0 0; padding-left: 17px; color: var(--ink-dim); font-size: 12.5px; line-height: 1.7; }
+      .timeline-list li { margin-bottom: 5px; }
+
+      .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; }
+      .tag {
+        padding: 3px 9px; font-size: 11px; color: var(--accent);
+        background: var(--accent-soft); border: 1px solid rgba(110, 168, 254, .22); border-radius: 4px;
+      }
+
+      .skill-list { display: grid; gap: 20px; }
+      .skill-group-title { margin-bottom: 2px; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); }
+
+      .card-list { display: grid; gap: 14px; }
+      .card { padding: 16px 17px; background: rgba(255, 255, 255, .02); border: 1px solid var(--line-soft); border-radius: 8px; }
+      .card-meta { font-size: 11px; letter-spacing: .1em; color: var(--accent); }
+      .card-title { margin: 4px 0 0; font-size: 14.5px; font-weight: 600; }
+      .card-desc { margin: 10px 0 0; color: var(--ink-dim); font-size: 12.5px; line-height: 1.65; }
+
+      .row-list { display: grid; gap: 1px; background: var(--line-soft); border: 1px solid var(--line-soft); }
+      .row, .meta-row {
+        display: flex; gap: 14px; align-items: baseline; padding: 13px 16px;
+        background: rgba(255, 255, 255, .015); color: var(--ink); text-decoration: none; font-size: 13px;
+      }
+      .row { flex-direction: column; gap: 5px; }
+      .row-meta { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+      .row-title { line-height: 1.5; }
+      .meta-label { flex: 0 0 84px; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); }
+      .meta-row.is-link:hover, .row:hover { background: rgba(110, 168, 254, .07); }
+
+      .quote-list { display: grid; gap: 14px; }
+      .quote-card { margin: 0; padding: 18px; background: rgba(255, 255, 255, .02); border-left: 2px solid var(--accent); }
+      .quote-text { margin: 0; color: var(--ink-dim); font-size: 13.5px; line-height: 1.7; font-style: italic; }
+      .quote-attrib { margin-top: 11px; font-size: 11.5px; color: var(--ink-faint); }
+
+      .btn {
+        display: inline-block; margin-top: 22px; padding: 11px 22px; font: inherit; font-size: 13px;
+        color: #0b1220; text-decoration: none; text-align: center; cursor: pointer;
+        background: var(--accent); border: 0; border-radius: 7px;
+      }
+      .btn:hover { background: #86b7ff; }
+
+      .contact-form { display: grid; gap: 13px; margin-top: 26px; }
+      .field { display: grid; gap: 6px; }
+      .field label { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); }
+      .input {
+        width: 100%; padding: 10px 12px; font: inherit; color: var(--ink); resize: vertical;
+        background: rgba(255, 255, 255, .03); border: 1px solid var(--line); border-radius: 7px;
+      }
+      .input:focus { outline: none; border-color: var(--accent); }
+      .form-note { margin: 0; font-size: 11.5px; color: var(--ink-faint); }
+
+      /* --------------------------------------------------------------- debug */
+
+      /* The authoring tools ride along in the markup but only appear under `?debug`
+         — see `main.js`, which is also what decides whether they are wired at all. */
+      #panel, #editor { display: none; }
+      body.is-debug #panel { display: grid; }
+      body.is-debug #editor:not([hidden]) { display: grid; }
+      body.is-debug #intro, body.is-debug #dock, body.is-debug #hud { display: none; }
 
       #panel {
-        position: fixed; top: 14px; right: 14px; padding: 12px 14px; display: grid; gap: 9px;
-        background: rgba(24, 27, 33, .82); border: 1px solid #2f3542; border-radius: 10px;
+        position: fixed; top: 14px; right: 14px; z-index: 30; padding: 12px 14px; gap: 9px;
+        background: var(--chrome); border: 1px solid var(--line); border-radius: 10px;
         backdrop-filter: blur(8px);
       }
       #panel label { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
-      #panel input { accent-color: #6ea8fe; cursor: pointer; margin: 0; }
+      #panel input { accent-color: var(--accent); cursor: pointer; margin: 0; }
+      #opt-copy-view {
+        margin-top: 3px; padding: 4px 10px; font: inherit; color: var(--ink); cursor: pointer;
+        background: #2b3040; border: 1px solid #3c4356; border-radius: 6px;
+      }
       #panel h2 { margin: 0 0 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #8b93a3; }
-      #hint { position: fixed; left: 14px; bottom: 12px; color: #7d8595; }
+
+      #editor {
+        position: fixed; right: 14px; bottom: 12px; z-index: 30; padding: 12px 14px; gap: 10px;
+        background: var(--chrome); border: 1px solid var(--line); border-radius: 10px;
+        backdrop-filter: blur(8px); min-width: 260px;
+      }
+      #editor h2 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #8b93a3; }
+      #editor-body {
+        margin: 0; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+        white-space: pre; color: #c9cede; user-select: text;
+        /* A cord's route runs to thirty-odd lines — long enough to need its own
+           scroller rather than pushing the buttons off the screen. */
+        max-height: 46vh; overflow-y: auto;
+      }
+      #editor-actions { display: flex; gap: 8px; justify-self: start; }
+      #editor-copy, #editor-focus, #editor-reset {
+        padding: 4px 12px; font: inherit; color: var(--ink); cursor: pointer;
+        background: #2b3040; border: 1px solid #3c4356; border-radius: 6px;
+      }
+      #editor-copy:disabled, #editor-focus:disabled, #editor-reset:disabled { opacity: .45; cursor: default; }
       #stats-slot > div { position: static !important; }
+
+      /* ---------------------------------------------------------- small screens */
+
+      /* Under this width the sidebar would leave no room to see the prop it is about,
+         so it becomes a sheet over the bottom half and the camera stops shifting for
+         it (a zero-width panel means no lens offset — see `flight.js`). */
+      @media (max-width: 760px) {
+        #intro { left: 22px; top: 26px; max-width: calc(100vw - 44px); }
+        #intro h1 { font-size: 30px; }
+        #dock { left: 22px; right: 22px; bottom: 20px; max-width: none; }
+        #hint { display: none; }
+        .panel {
+          top: auto; left: 0; right: 0; width: auto; height: 72vh; padding: 30px 24px 60px;
+          border-left: 0; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0;
+          transform: translateY(100%);
+        }
+        .panel.is-open { transform: translateY(0); }
+        .panel-title { font-size: 24px; }
+        .stat-grid { grid-template-columns: 1fr; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .panel, .panel.is-open > * { transition-duration: .01ms; animation: none; opacity: 1; }
+      }
     </style>
   </head>
   <body>
+    <div id="intro">
+      <h1>Arash<br />Goharrostami</h1>
+      <p>
+        Software Engineer — full-stack and backend systems. Five years building scalable web,
+        mobile and real-time services. Tehran, Iran.
+      </p>
+      <p id="intro-hint">Drag to orbit · click anything on the desk to read about it</p>
+    </div>
+
+    <!-- Filled from the anchors that resolved, by `src/resume/index.js`. -->
+    <div id="dock"></div>
+
+    <div id="hud">
+      <div id="hud-view">View — full room</div>
+      <div>Workspace · Tehran</div>
+    </div>
+
+    <button id="back" type="button" data-close="1">← Back to the room</button>
+    <div id="hint">Drag to orbit · scroll to zoom</div>
+
+    <!-- Filled from `src/resume/content.js`, by `src/resume/panels.js`. -->
+    <div id="panels"></div>
+
     <div id="panel">
       <h2>Debug</h2>
       <label><input type="checkbox" id="opt-wireframe" /> Wireframe</label>
       <label><input type="checkbox" id="opt-grid" /> Grid</label>
+      <label><input type="checkbox" id="opt-walls" /> Hide walls</label>
       <label><input type="checkbox" id="opt-rotate" /> Auto-rotate</label>
       <label><input type="checkbox" id="opt-stats" /> FPS</label>
+      <label><input type="checkbox" id="opt-edit" disabled /> Edit</label>
+      <button id="opt-copy-view" type="button">Copy view</button>
       <div id="stats-slot"></div>
     </div>
 
-    <div id="hint">Drag to orbit · scroll to zoom · right-drag to pan</div>
+    <div id="editor" hidden>
+      <h2>Selection</h2>
+      <pre id="editor-body">Click a prop to select it.
+G move · R turn · S size · F focus · Z reset · shift snaps · esc clears
+On a cable: click a point · A adds · X removes</pre>
+      <div id="editor-actions">
+        <button id="editor-copy" disabled>Copy</button>
+        <button id="editor-focus" disabled>Focus</button>
+        <button id="editor-reset" disabled>Reset</button>
+      </div>
+    </div>
 
     <div id="overlay">
-      <div id="overlay-text">Loading model…</div>
+      <div id="overlay-text">Loading room…</div>
       <div id="bar-track"><div id="bar"></div></div>
     </div>
 

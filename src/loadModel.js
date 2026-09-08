@@ -10,17 +10,27 @@ import { applyFloorMaterial } from './floorMaterial.js';
 import { clearProps } from './clearProps.js';
 import { addDeskAccessories } from './deskAccessories.js';
 import { addMacbook } from './macbook.js';
-import { addProDisplay } from './proDisplay.js';
+import { addScreenbar } from './screenbar.js';
+import { addProDisplay, addSideDisplay } from './proDisplay.js';
 import { addPrinter } from './printer.js';
 import { addDeskApple } from './deskApple.js';
 import { addBlind } from './blind.js';
 import { addGuitar } from './guitar.js';
 import { addCarpet } from './carpet.js';
+import { addMacProCable } from './macProCable.js';
+import { addMacbookUsbCable } from './macbookUsbCable.js';
+import { addDisplayCables } from './displayCables.js';
 import { addDeskMat } from './deskMat.js';
 import { addPeripherals } from './peripherals.js';
 import { addMouseArea } from './mouseArea.js';
 import { addWallOutlet } from './wallOutlet.js';
 import { addMacPro } from './macPro.js';
+import { addPowerStrips } from './powerStrips.js';
+import { addCableHolders } from './cableHolders.js';
+import { addScreenbarRemote } from './screenbarRemote.js';
+import { addAirPodsMax } from './airpodsMax.js';
+import { addFloorSocket } from './floorSocket.js';
+import { applyHomeView } from './homeView.js';
 
 const MODEL_URL = 'models/Workplace.glb';
 
@@ -90,11 +100,19 @@ export function loadModel({ scene, camera, controls, environment, ui }) {
           await addMacbook(model, accessories.stand).catch((error) => {
             console.warn('[macbook] failed to load:', error);
           });
+
+          // Its perch on the lid is authored, so it needs nothing but somewhere to hang.
+          await addScreenbar(model).catch((error) => {
+            console.warn('[screenbar] failed to load:', error);
+          });
           await addProDisplay(model, accessories.riser).catch((error) => {
             console.warn('[display] failed to load:', error);
           });
           await addPrinter(model, swap.box, accessories.stand).catch((error) => {
             console.warn('[printer] failed to load:', error);
+          });
+          await addSideDisplay(model, swap.box).catch((error) => {
+            console.warn('[side display] failed to load:', error);
           });
           await addDeskApple(
             model,
@@ -102,6 +120,12 @@ export function loadModel({ scene, camera, controls, environment, ui }) {
             model.getObjectByName('Pro_Display_XDR')
           ).catch((error) => {
             console.warn('[desk apple] failed to load:', error);
+          });
+          await addScreenbarRemote(model).catch((error) => {
+            console.warn('[screenbar remote] failed to load:', error);
+          });
+          await addAirPodsMax(model).catch((error) => {
+            console.warn('[airpods max] failed to load:', error);
           });
           const mat = addDeskMat(model, swap.desk);
           await addPeripherals(model, mat).catch((error) => {
@@ -113,17 +137,49 @@ export function loadModel({ scene, camera, controls, environment, ui }) {
           await addMacPro(model, swap.desk, model.getObjectByName('floor')).catch((error) => {
             console.warn('[mac pro] failed to load:', error);
           });
+          await addCableHolders(model).catch((error) => {
+            console.warn('[cable holders] failed to load:', error);
+          });
+
+          await addFloorSocket(model, swap.box).catch((error) => {
+            console.warn('[socket] failed to load:', error);
+          });
         }
 
         // `extendBackWall` only hands back the wall when it actually stretched it,
         // so fall back to the blank wall by name.
-        await addWallOutlet(
+        const outlet = await addWallOutlet(
           model,
           backWall ?? model.getObjectByName('wall1'),
           model.getObjectByName('floor')
         ).catch((error) => {
           console.warn('[outlet] failed to load:', error);
+          return null;
         });
+
+        await addPowerStrips(model, model.getObjectByName('floor'), outlet).catch((error) => {
+          console.warn('[power strips] failed to load:', error);
+        });
+
+        // Its own route and both its ends are authored in world space, so unlike the
+        // strips it needs nothing but somewhere to hang.
+        await addMacProCable(model).catch((error) => {
+          console.warn('[mac pro cable] failed to load:', error);
+        });
+
+        // Both ends are props of their own, so it goes in after the laptop and tower.
+        if (swap) {
+          await addMacbookUsbCable(model).catch((error) => {
+            console.warn('[macbook usb-c] failed to load:', error);
+          });
+
+          // The display's own two leads: they need the outlet as well as the desk's
+          // props, so they wait until everything they hang off is in.
+          await addDisplayCables(model).catch((error) => {
+            console.warn('[display cables] failed to load:', error);
+          });
+
+        }
 
         // Depends on the window alone, so it runs whether or not the desk swap landed.
         await addBlind(model).catch((error) => {
@@ -191,25 +247,9 @@ function isFloor(node) {
   return false;
 }
 
-/** Places the camera so the whole bounding box fits in view, and retargets orbit. */
+/** Places the camera at the room's home view, and sets how far orbiting may zoom. */
 function frameCamera(box, camera, controls) {
-  const size = box.getSize(new THREE.Vector3());
-  const center = box.getCenter(new THREE.Vector3());
-  const radius = Math.max(size.length() / 2, 1e-3);
-
-  const fov = THREE.MathUtils.degToRad(camera.fov);
-  const aspect = Number.isFinite(camera.aspect) && camera.aspect > 0 ? camera.aspect : 1;
-  const fitHeight = radius / Math.sin(fov / 2);
-  const fitWidth = radius / Math.sin(Math.atan(Math.tan(fov / 2) * aspect));
-  const distance = Math.max(fitHeight, fitWidth) * 1.05;
-
-  const dir = new THREE.Vector3(1, 0.55, 1).normalize();
-  camera.position.copy(center).addScaledVector(dir, distance);
-  camera.near = distance / 100;
-  camera.far = distance * 100;
-  camera.updateProjectionMatrix();
-
-  controls.target.copy(center);
+  const { distance, radius } = applyHomeView(box, camera, controls);
   controls.minDistance = radius * 0.1;
   controls.maxDistance = distance * 6;
   controls.update();

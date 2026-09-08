@@ -26,10 +26,22 @@ const SCALE = 100;
  * rows fit inside: the iPad and phone at the back, the watch and pencil ahead of them.
  */
 const LAYOUT = {
-  ipad: { x: -32, z: 32 },
-  iphone: { x: -2, z: 30 },
-  watch: { x: 12, z: 54 },
-  pencil: { x: -34, z: 54 },
+  ipad: { x: -7.8, z: 48.7 },
+  iphone: { x: 48.2, z: 46.8 },
+  watch: { x: 56.5, z: 49.8 },
+  pencil: { x: 6.7, z: 54 },
+};
+
+/**
+ * How far each piece is turned off the desk's axis, in degrees. The watch and the
+ * Pencil were laid across the desk rather than along it, the iPad turned with them and
+ * the phone just knocked off square. Applied after seating, so a turn moves nothing.
+ */
+const YAW = {
+  ipad: 104.7,
+  iphone: -8.7,
+  watch: 95.6,
+  pencil: 96,
 };
 
 /**
@@ -82,6 +94,10 @@ export async function addDeskApple(parent, deskBox, display) {
     object.position.set(0, 0, 0);
     object.updateMatrixWorld(true);
     restOnDesk(object, surfaceY, anchor.x + LAYOUT[key].x, anchor.z + LAYOUT[key].z);
+    if (YAW[key]) {
+      object.rotation.y = THREE.MathUtils.degToRad(YAW[key]);
+      object.updateMatrixWorld(true);
+    }
   }
 
   return placed;

@@ -3,8 +3,8 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 
 /**
  * Two desk pieces modelled from the reference photo: a monitor riser (black steel
- * plate on wooden dowel legs) and a laptop stand (base plate,
- * dowel column, angled bracket with felt pads).
+ * plate on wooden dowel legs) and a laptop stand (base plate, dowel column, angled
+ * bracket with felt pads).
  *
  * The room's units run about one per centimetre — the desk is 246 wide and its top
  * sits 80 above the floor — so every dimension below is in centimetres.

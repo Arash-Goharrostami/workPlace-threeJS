@@ -18,8 +18,17 @@ const SCALE = 100;
 /** How far in from the mat's ends each device sits. */
 const EDGE_MARGIN = 7;
 
-/** A few degrees off square, so the trackpad reads as set down rather than aligned. */
+/** A few degrees off square, so neither reads as aligned to the desk. */
+const KEYBOARD_TILT = THREE.MathUtils.degToRad(2.8);
 const TRACKPAD_TILT = THREE.MathUtils.degToRad(-9);
+
+/**
+ * Nudges from the seating above, in x and z — where each was actually left. The
+ * keyboard's is a shade under its measured move because the seating aligns the near
+ * end of its footprint, and the tilt swings that end out by a few millimetres.
+ */
+const KEYBOARD_OFFSET = new THREE.Vector2(3.8, 2.7);
+const TRACKPAD_OFFSET = new THREE.Vector2(-9.2, -0.3);
 
 /**
  * The space black finish, ported from the source project's space-black.js: the
@@ -45,6 +54,7 @@ export async function addPeripherals(parent, mat) {
   const trackpad = prepare(trackpadGltf.scene, 'Magic_Trackpad');
   repaint(trackpad, TRACKPAD_REPAINT);
 
+  keyboard.rotation.y = KEYBOARD_TILT;
   trackpad.rotation.y = TRACKPAD_TILT;
 
   mat.updateMatrixWorld(true);
@@ -52,8 +62,10 @@ export async function addPeripherals(parent, mat) {
   const surfaceY = matBox.max.y;
   const centreZ = matBox.getCenter(new THREE.Vector3()).z;
 
-  placeOn(parent, keyboard, matBox.min.x + EDGE_MARGIN, surfaceY, centreZ, 'min');
-  placeOn(parent, trackpad, matBox.max.x - EDGE_MARGIN, surfaceY, centreZ, 'max');
+  placeOn(parent, keyboard, matBox.min.x + EDGE_MARGIN + KEYBOARD_OFFSET.x,
+          surfaceY, centreZ + KEYBOARD_OFFSET.y, 'min');
+  placeOn(parent, trackpad, matBox.max.x - EDGE_MARGIN + TRACKPAD_OFFSET.x,
+          surfaceY, centreZ + TRACKPAD_OFFSET.y, 'max');
 
   return { keyboard, trackpad };
 }
