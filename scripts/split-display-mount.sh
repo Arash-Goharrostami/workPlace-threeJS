@@ -5,7 +5,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 blender="${BLENDER:-/Applications/Blender.app/Contents/MacOS/Blender}"
-model="$root/public/models/pro-display-xdr.glb"
+model="$root/public/models/proDisplayXdr.glb"
 
 [ -x "$blender" ] || { echo "Blender not found at $blender (set BLENDER=...)"; exit 1; }
 [ -f "$model" ] || { echo "Missing model: $model — run npm run apple first"; exit 1; }
@@ -19,4 +19,4 @@ trap 'rm -rf "$tmp"' EXIT
 
 [ -s "$tmp/out.glb" ] || { echo "Split produced no output"; exit 1; }
 mv "$tmp/out.glb" "$model"
-echo "Done: public/models/pro-display-xdr.glb ($(du -h "$model" | cut -f1))"
+echo "Done: public/models/proDisplayXdr.glb ($(du -h "$model" | cut -f1))"

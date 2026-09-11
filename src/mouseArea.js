@@ -1,16 +1,19 @@
 import * as THREE from 'three';
-import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { loadGLB } from './gltfLoader.js';
 import { buildFeltMat } from './deskMat.js';
 
 /**
  * A small felt pad on the desktop with the Magic Mouse on it, ported from the
  * WorkDesk3D project's magic-mouse.js.
  *
- * Unlike everything else imported here the mouse is an OBJ, authored in millimetres,
- * Y-up, standing on y = 0 with its long axis along z.
+ * The mouse is authored in millimetres, Y-up, standing on y = 0 with its long axis
+ * along z. It arrived as the project's one OBJ — 1.97 MB, because an OBJ spells every
+ * coordinate out in ASCII — and is now a GLB, converted by `scripts/obj-to-glb.mjs` and
+ * compressed to 75 KB. The nine `usemtl` names came through the conversion untouched,
+ * which is what `SHELL_PARTS` and `BASE_PARTS` below still select on.
  */
 
-const OBJ_URL = 'models/magic-mouse.obj';
+const MODEL_URL = 'models/magicMouse.glb';
 
 /** Metres (the mat's authored units) to this scene's centimetres. */
 const SCALE = 100;
@@ -91,9 +94,10 @@ export async function addMouseArea(parent, desk) {
   return { pad, mouse };
 }
 
-/** Loads the OBJ, keeps only the skin, and fits it to Apple's published size. */
+/** Loads the model, keeps only the skin, and fits it to Apple's published size. */
 async function loadMouse() {
-  const loaded = await new OBJLoader().loadAsync(OBJ_URL);
+  const loaded = await loadGLB(MODEL_URL);
+  const mesh = loaded.scene ?? loaded;
 
   const shell = new THREE.MeshStandardMaterial({ name: 'mm_shell', ...SHELL_SPEC });
   const base = new THREE.MeshStandardMaterial({ name: 'mm_base', ...BODY_SPEC });
@@ -104,11 +108,12 @@ async function loadMouse() {
   const root = new THREE.Group();
   root.name = 'Magic_Mouse';
 
-  // The whole file is one `g`, so the loader hands back a single mesh carrying every
-  // material at once: the split lives in `geometry.groups`, each a run of vertices
-  // and the material it belongs to. The parts are therefore picked out by slicing
-  // those runs, not by mesh name — and each material's runs are scattered through
-  // the file, so they are gathered and concatenated into one geometry each.
+  // The parts are picked out by material, not by mesh name, and a material's faces may
+  // arrive in either of two shapes. As an OBJ this was one mesh carrying every material
+  // at once, the split living in `geometry.groups` — each a run of vertices and the
+  // material it belongs to, scattered through the file and gathered here. glTF instead
+  // gives one mesh per material, indexed and with no groups at all. Both are handled:
+  // `runs()` below normalises them to the same thing, so neither format is assumed.
   const collect = (into, source, start, count) => {
     ['position', 'normal', 'uv'].forEach((key) => {
       const attribute = source.getAttribute(key);
@@ -120,17 +125,30 @@ async function loadMouse() {
     });
   };
 
+  /**
+   * The material runs in one geometry. A grouped geometry reports its own; one without
+   * groups is a single run over every vertex, which is what glTF's one-mesh-per-material
+   * layout produces.
+   */
+  const runs = (geometry) =>
+    geometry.groups.length
+      ? geometry.groups
+      : [{ start: 0, count: geometry.getAttribute('position').count, materialIndex: 0 }];
+
   const parts = { 'mouse shell': {}, 'mouse base': {} };
-  loaded.traverse((child) => {
+  mesh.traverse((child) => {
     if (!child.isMesh) return;
     const materials = Array.isArray(child.material) ? child.material : [child.material];
-    child.geometry.groups.forEach(({ start, count, materialIndex }) => {
+    // `collect` slices attribute arrays by vertex offset, so an indexed geometry has to
+    // be expanded first — a glTF group's offsets count indices, not vertices.
+    const geometry = child.geometry.index ? child.geometry.toNonIndexed() : child.geometry;
+    for (const { start, count, materialIndex } of runs(geometry)) {
       const name = materials[materialIndex]?.name;
       const target = SHELL_PARTS.has(name)
         ? 'mouse shell'
         : BASE_PARTS.has(name) ? 'mouse base' : null;
-      if (target) collect(parts[target], child.geometry, start, count);
-    });
+      if (target) collect(parts[target], geometry, start, count);
+    }
   });
 
   for (const [name, attributes] of Object.entries(parts)) {

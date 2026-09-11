@@ -29,7 +29,14 @@ function shared() {
   return loader;
 }
 
-/** Loads one GLB. Compressed or not — the decoder is only touched if it is needed. */
-export function loadGLB(url) {
-  return shared().loadAsync(url);
+/**
+ * Loads one GLB. Compressed or not — the decoder is only touched if it is needed.
+ *
+ * `onProgress` is passed through so that even the room, which reports download progress
+ * to the UI, has no reason to build a loader of its own. That mattered: a module with its
+ * own bare `GLTFLoader` loads uncompressed models perfectly well and then fails the day
+ * its model is Draco-compressed, which is exactly what happened to `desk.glb`.
+ */
+export function loadGLB(url, onProgress) {
+  return shared().loadAsync(url, onProgress);
 }

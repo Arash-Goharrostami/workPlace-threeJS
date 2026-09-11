@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { replaceDesks } from './replaceDesks.js';
 import { replaceChair } from './replaceChair.js';
+import { loadGLB } from './gltfLoader.js';
 import { materialsOf } from './materials.js';
 import { darkenScene } from './darkenScene.js';
 import { extendBackWall } from './extendBackWall.js';
@@ -11,8 +11,14 @@ import { clearProps } from './clearProps.js';
 import { addDeskAccessories } from './deskAccessories.js';
 import { addMacbook } from './macbook.js';
 import { addScreenbar } from './screenbar.js';
+import { addScreenbarCable } from './screenbarCable.js';
 import { addProDisplay, addSideDisplay } from './proDisplay.js';
+import { addHomePodMini } from './homePodMini.js';
+import { addHomePodCable } from './homePodCable.js';
 import { addPrinter } from './printer.js';
+import { addPaperTablet } from './paperTablet.js';
+import { addFilamentSpools } from './filamentSpools.js';
+import { addPrinterCable } from './printerCable.js';
 import { addDeskApple } from './deskApple.js';
 import { addBlind } from './blind.js';
 import { addGuitar } from './guitar.js';
@@ -24,6 +30,7 @@ import { addDeskMat } from './deskMat.js';
 import { addPeripherals } from './peripherals.js';
 import { addMouseArea } from './mouseArea.js';
 import { addWallOutlet } from './wallOutlet.js';
+import { addWallFrames } from './wallFrames.js';
 import { addMacPro } from './macPro.js';
 import { addPowerStrips } from './powerStrips.js';
 import { addCableHolders } from './cableHolders.js';
@@ -32,19 +39,22 @@ import { addAirPodsMax } from './airpodsMax.js';
 import { addFloorSocket } from './floorSocket.js';
 import { applyHomeView } from './homeView.js';
 
-const MODEL_URL = 'models/Workplace.glb';
+const MODEL_URL = 'models/workplace.glb';
 
 /**
  * Loads the converted Workplace model, recenters it on the origin and frames
  * the camera to its bounds. Progress and failures are reported through `ui`.
  */
 export function loadModel({ scene, camera, controls, environment, ui }) {
-  const loader = new GLTFLoader();
-
   return new Promise((resolve) => {
-    loader.load(
-      MODEL_URL,
-      async (gltf) => {
+    loadGLB(MODEL_URL, (event) => {
+      if (event.lengthComputable) {
+        ui.progress(event.loaded / event.total);
+      } else if (event.loaded) {
+        ui.progressText(`Loading model… ${(event.loaded / 1e6).toFixed(1)} MB`);
+      }
+    })
+      .then(async (gltf) => {
         const model = gltf.scene;
 
         model.traverse((node) => {
@@ -101,17 +111,55 @@ export function loadModel({ scene, camera, controls, environment, ui }) {
             console.warn('[macbook] failed to load:', error);
           });
 
-          // Its perch on the lid is authored, so it needs nothing but somewhere to hang.
-          await addScreenbar(model).catch((error) => {
-            console.warn('[screenbar] failed to load:', error);
-          });
-          await addProDisplay(model, accessories.riser).catch((error) => {
+          const mainDisplay = await addProDisplay(model, accessories.riser).catch((error) => {
             console.warn('[display] failed to load:', error);
+            return null;
+          });
+
+          // A pair, one on each free end of the riser plate either side of the display's
+          // foot — so they need the riser, and nothing else. Built in code, so there is
+          // nothing to await and nothing to fail on the network.
+          const homepods = addHomePodMini(model, accessories.riser);
+          // Each lead is authored against its own speaker by name and ends plugged into
+          // the back of the display. These do wait: the Type-C plug comes out of the
+          // USB-C pack.
+          for (const homepod of homepods) {
+            await addHomePodCable(model, homepod).catch((error) => {
+              console.warn('[homepod cable] failed to load:', error);
+            });
+          }
+
+          // Hangs off the display's top edge, so it has to wait for it.
+          const bar = await addScreenbar(model, mainDisplay).catch((error) => {
+            console.warn('[screenbar] failed to load:', error);
+            return null;
+          });
+
+          // Its lead is measured from the bar, so it follows it.
+          await addScreenbarCable(model, bar).catch((error) => {
+            console.warn('[screenbar cable] failed to load:', error);
           });
           await addPrinter(model, swap.box, accessories.stand).catch((error) => {
             console.warn('[printer] failed to load:', error);
           });
-          await addSideDisplay(model, swap.box).catch((error) => {
+
+          // Laid at an authored spot of its own, so it needs nothing but somewhere to lie.
+          await addPaperTablet(model).catch((error) => {
+            console.warn('[paper tablet] failed to load:', error);
+          });
+
+          // Stands on the floor at an authored spot of its own, so it needs nothing
+          // but somewhere to hang.
+          await addFilamentSpools(model).catch((error) => {
+            console.warn('[filament spools] failed to load:', error);
+          });
+
+          // The lead is authored in world space, but it ends inside the printer, so it
+          // goes in after the machine is seated.
+          await addPrinterCable(model).catch((error) => {
+            console.warn('[printer cable] failed to load:', error);
+          });
+          await addSideDisplay(model).catch((error) => {
             console.warn('[side display] failed to load:', error);
           });
           await addDeskApple(
@@ -155,6 +203,11 @@ export function loadModel({ scene, camera, controls, environment, ui }) {
         ).catch((error) => {
           console.warn('[outlet] failed to load:', error);
           return null;
+        });
+
+        // Hung at an authored spot of its own, so it needs nothing but somewhere to hang.
+        await addWallFrames(model).catch((error) => {
+          console.warn('[wall frames] failed to load:', error);
         });
 
         await addPowerStrips(model, model.getObjectByName('floor'), outlet).catch((error) => {
@@ -223,19 +276,11 @@ export function loadModel({ scene, camera, controls, environment, ui }) {
 
         ui.hide();
         resolve(model);
-      },
-      (event) => {
-        if (event.lengthComputable) {
-          ui.progress(event.loaded / event.total);
-        } else if (event.loaded) {
-          ui.progressText(`Loading model… ${(event.loaded / 1e6).toFixed(1)} MB`);
-        }
-      },
-      (error) => {
+      })
+      .catch((error) => {
         ui.error(`Could not load ${MODEL_URL}. ${error?.message ?? error}`);
         resolve(null);
-      }
-    );
+      });
   });
 }
 

@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
-# Converts tmp/<Name>.usdz into public/models/<Name>.glb using Blender.
-# Usage: convert-usdz.sh [Name ...]   (no arguments converts every model in tmp/)
+# Converts tmp/<Source>.usdz into public/models/<camelCase>.glb using Blender.
+# Usage: convert-usdz.sh [Source ...]   (no arguments converts every model in tmp/)
+#
+# The .usdz keeps whatever name it arrived with and that is still what you pass in; only
+# the GLB is renamed, through scripts/model-names.txt.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=model-name.sh
+source "$root/scripts/model-name.sh"
 blender="${BLENDER:-/Applications/Blender.app/Contents/MacOS/Blender}"
 
 [ -x "$blender" ] || { echo "Blender not found at $blender (set BLENDER=...)"; exit 1; }
@@ -20,7 +25,7 @@ for name in "${names[@]}"; do
   usdz="$(find "$root/tmp" -name "$name.usdz" -not -path '*/extracted/*' | head -1)"
   # Each model gets its own dir so sibling texture folders can't collide.
   extracted="$root/tmp/extracted/$name"
-  out="$root/public/models/$name.glb"
+  out="$root/public/models/$(model_name "$name").glb"
 
   [ -f "$usdz" ] || { echo "Missing source model: $usdz"; exit 1; }
 

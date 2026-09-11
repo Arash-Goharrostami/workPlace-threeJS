@@ -13,7 +13,7 @@ import { buildCable } from './cable.js';
  * pasted back into the source, which a baked mesh cannot.
  */
 
-const MODEL_URL = 'models/Power_cable_hight-poly.glb';
+const MODEL_URL = 'models/powerCable.glb';
 
 /** The plug that goes in the wall, and the appliance end that goes in the machine. */
 const PLUG_PART = 'polySurface89';

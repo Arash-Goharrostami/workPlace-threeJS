@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { buildPhonePlayer } from './phonePlayer.js';
 
 /**
  * The iPhone 15 Pro, ported from the WorkDesk3D project — the one prop here built in
@@ -533,6 +534,12 @@ export function buildIphone15Pro() {
       `iphone-status-signal-${i + 1}`, body);
     bar.position.set(MIRROR * x, STATUS_Y, STATUS_BASE + len / 2);
   });
+
+  // ---- the Now Playing card ---------------------------------------------
+  // The iOS media widget, filling the empty screen between the island and the app row.
+  // Its parts are in `phonePlayer.js`; what it plays is in `resume/phonePlayer.js`, which
+  // finds the card through the handle left on the root here.
+  root.userData.player = buildPhonePlayer(body, { screenY: SCREEN_Y });
 
   // ---- camera plateau, on the back (pointing down, face-up) --------------
   const plateau = slab(BUMP, BUMP, BUMP_H, 0.009, M.backGlass,

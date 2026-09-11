@@ -9,8 +9,15 @@ import { loadGLB } from './gltfLoader.js';
  * footprint, so they need only scaling and seating.
  */
 
-const KEYBOARD_URL = 'models/magic-keyboard.glb';
-const TRACKPAD_URL = 'models/magic-trackpad.glb';
+/**
+ * `npm run shrink -- magicKeyboard 1024 85` took the keyboard from 642 KB to 57 KB: its
+ * keycaps were a single 4096x4096 JPEG, 543 KB of the 642, on something seen from a metre
+ * away. The mesh was already small and is untouched. The trackpad has no textures at all,
+ * so `npm run shrink -- magicTrackpad 512 85` only recompressed its geometry, 191 KB
+ * to 95 KB.
+ */
+const KEYBOARD_URL = 'models/magicKeyboard.glb';
+const TRACKPAD_URL = 'models/magicTrackpad.glb';
 
 /** Metres (the models' units) to this scene's centimetres. */
 const SCALE = 100;

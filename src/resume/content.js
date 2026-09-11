@@ -6,6 +6,8 @@
  * dock buttons open, and what `panels.js` builds a sidebar from. Adding a section
  * means adding it in both files.
  *
+ * A section marked `screen` is drawn on its own prop instead of in the sidebar.
+ *
  * `blocks` is a small tagged union — each entry's `kind` picks the renderer in
  * `panels.js`. Anything it does not recognise is skipped rather than thrown, so a
  * half-written block cannot take the room down.
@@ -23,26 +25,45 @@ export const PROFILE = {
 /** Where `panels.js` looks for the CV. Drop the file in `public/cv/` to arm the button. */
 export const CV_URL = 'cv/Arash-Goharrostami.pdf';
 
+/** The name the browser saves it under. */
+export const CV_FILENAME = 'Arash-Goharrostami-CV.pdf';
+
 export const SECTIONS = {
   about: {
-    number: '01',
+    // Read off the portrait display's own screen rather than the sidebar — see
+    // `screen.js`. The others follow one at a time.
+    screen: true,
+    // And drawn there as a window rather than as a page: `textEditApp.js` sets the copy
+    // below as a document in TextEdit, title bar, format toolbar and ruler included.
+    app: 'textEdit',
+    // No bigger on a phone: this display is already tall and narrow, and is read from
+    // close enough that the room's own sizes hold. See `NARROW_TYPE` in `screen.js`.
+    narrowType: 1,
     eyebrow: 'About',
     title: 'Summary',
     blocks: [
       {
+        kind: 'intro',
+        text:
+          'Developer with 9+ years in Linux and server infrastructure, who came to ' +
+          'programming through C, C++ and Assembly and has spent the last 6 years ' +
+          'building with TypeScript — from hardening servers to shipping production ' +
+          'web apps.',
+      },
+      {
         kind: 'text',
         paragraphs: [
-          'Software Engineer with 5+ years building scalable web and mobile applications, specialising in backend engineering, distributed systems and real-time applications.',
-          'I design production-grade services with Node.js, TypeScript, NestJS and Express.js, and build the clients on top of them with React, Next.js, React Native, Swift and SwiftUI.',
-          'Strongest in microservices, event-driven architecture, real-time communication, API design, database optimisation, authentication and production infrastructure — with a bias toward systems that stay maintainable as they scale.',
+          'I started on the systems side, not the application side. For the better part of a decade I have been configuring Linux servers, securing them, and keeping them running — Nginx and Apache in production then and now, and Kubernetes for orchestration as the work moved into containers. Working through the Linux track from the fundamentals up to the professional level is also what taught me to read a system rather than guess at it.',
+          'Programming came out of that. Administering machines led me to C and C++, then down to Assembly to understand what the machine was actually doing, then to Python for the tooling around it. PHP and Laravel were my first real introduction to building for the web.',
+          'Then I found JavaScript, and it took over. Six years later I write nearly everything in TypeScript — the types are what make a codebase survivable in a team and what turn a class of runtime failures into compile-time ones. That is the part of the job I enjoy most: code other people can pick up, and errors that surface before a user ever sees them.',
         ],
       },
       {
         kind: 'stats',
         cells: [
-          { label: 'Experience', value: '5+ years' },
+          { label: 'Experience', value: '9+ years' },
           { label: 'Based in', value: 'Tehran, IR' },
-          { label: 'Focus', value: 'Backend' },
+          { label: 'Focus', value: 'TypeScript' },
           { label: 'Status', value: 'Open', accent: true },
         ],
       },
@@ -50,9 +71,18 @@ export const SECTIONS = {
   },
 
   experience: {
-    number: '02',
+    // Read off the main display's own screen rather than the sidebar — see `screen.js`.
+    screen: true,
+    // And drawn there as a window rather than as a page: `notesApp.js` puts a row per
+    // role and per project down a sidebar, and shows the one that is clicked. The
+    // blocks below are what it builds that list from — a `timeline` item is a note, a
+    // `cards` item is a note, and the `heading` between them names the second group.
+    app: 'notes',
+    // The XDR is the biggest screen in the room and is read from a step back; a touch
+    // under the portrait display's sizes keeps a four-role page from running long.
+    screenScale: 0.5,
     eyebrow: 'Experience',
-    title: 'Professional experience',
+    title: 'Experience & projects',
     blocks: [
       {
         kind: 'timeline',
@@ -60,9 +90,16 @@ export const SECTIONS = {
           {
             date: 'Jan 2025 — Sep 2026',
             role: 'Backend Engineer',
-            org: 'Jamooj — villa rental platform',
+            org: 'Jamooj — villa and short-stay rental marketplace',
+            desc:
+              'Iran-wide marketplace for villas, suites and apartments: guests search by ' +
+              'destination, dates and party size, and hosts list, price and manage their ' +
+              'own properties.',
             tags: ['NestJS', 'TypeScript', 'MongoDB', 'Redis', 'Docker'],
             points: [
+              'Built the booking core — availability calendars, per-night and seasonal pricing, and reservation state from request through confirmation to cancellation.',
+              'Search and filtering across listings by destination, dates, capacity and property type, on MongoDB indexes shaped for those queries.',
+              'Host-side APIs for listing, pricing, calendar and reservations, on the same contracts the guest clients use.',
               'Cut API response time 65% through query optimisation, better data-access patterns and caching.',
               'Reduced database query latency 40% by reworking MongoDB queries and indexes.',
               'Designed service boundaries so core components ship independently.',
@@ -105,50 +142,7 @@ export const SECTIONS = {
           },
         ],
       },
-    ],
-  },
-
-  skills: {
-    number: '03',
-    eyebrow: 'Stack',
-    title: 'Technical skills',
-    blocks: [
-      {
-        kind: 'skills',
-        groups: [
-          {
-            title: 'Languages',
-            tags: ['TypeScript', 'JavaScript ES6+', 'Java', 'Swift', 'PHP', 'HTML', 'CSS'],
-          },
-          {
-            title: 'Backend',
-            tags: ['Node.js', 'NestJS', 'Express.js', 'REST', 'GraphQL', 'WebSockets', 'Socket.io'],
-          },
-          {
-            title: 'Architecture',
-            tags: ['Microservices', 'Distributed systems', 'Event-driven', 'System design', 'Clean architecture'],
-          },
-          { title: 'Databases', tags: ['MongoDB', 'Mongoose', 'PostgreSQL', 'MySQL', 'Redis'] },
-          { title: 'Messaging & real-time', tags: ['RabbitMQ', 'Apache Kafka', 'NATS', 'WebSockets'] },
-          {
-            title: 'Frontend & mobile',
-            tags: ['React', 'Next.js', 'Angular', 'React Native', 'Swift', 'SwiftUI', 'Android', 'iOS'],
-          },
-          { title: 'Security', tags: ['JWT', 'RBAC', 'Auth', 'Hashing', 'Rate limiting', 'CORS'] },
-          {
-            title: 'Infrastructure & DevOps',
-            tags: ['Docker', 'Linux', 'Ubuntu', 'Nginx', 'CI/CD', 'VPS', 'Cloudflare', 'Git'],
-          },
-        ],
-      },
-    ],
-  },
-
-  projects: {
-    number: '04',
-    eyebrow: 'Projects',
-    title: 'Personal projects',
-    blocks: [
+      { kind: 'heading', text: 'Personal projects' },
       {
         kind: 'cards',
         items: [
@@ -176,8 +170,57 @@ export const SECTIONS = {
     ],
   },
 
+  skills: {
+    // Read off the MacBook's own screen rather than the sidebar — see `screen.js`.
+    screen: true,
+    // The lid is a small panel read from a stride back — the portrait display's type
+    // sizes land on it far too big. See `flow()` in `screen.js`.
+    screenScale: 0.46,
+    eyebrow: 'Stack',
+    title: 'Technical skills',
+    blocks: [
+      {
+        kind: 'intro',
+        // One line, not a paragraph: the laptop's panel is short, and the groups are
+        // what the section is for.
+        text: 'Linux and containers underneath, TypeScript across the stack above them.',
+      },
+      {
+        kind: 'skills',
+        groups: [
+          {
+            title: 'Systems & DevOps',
+            tags: ['Linux', 'Kubernetes', 'Docker', 'Nginx', 'Apache', 'Bash', 'Git'],
+          },
+          { title: 'Backend', tags: ['Node.js', 'Express', 'NestJS', 'Bun'] },
+          {
+            title: 'Frontend',
+            tags: ['HTML', 'CSS', 'JavaScript', 'TypeScript', 'React', 'Next.js', 'Angular', 'three.js', 'Vite'],
+          },
+          { title: 'Application', tags: ['Java', 'Kotlin', 'Swift', 'SwiftUI', 'Dart'] },
+          {
+            title: 'Databases',
+            tags: ['SQL', 'MySQL', 'PostgreSQL', 'NoSQL', 'MongoDB', 'Mongoose'],
+          },
+          { title: 'Languages', tags: ['C', 'C++', 'Assembly', 'Python', 'PHP', 'Laravel'] },
+          {
+            title: 'Certifications',
+            tags: ['LPIC-3 — Linux Professional Institute', 'B.Sc. — University Degree'],
+          },
+        ],
+      },
+    ],
+  },
+
   education: {
-    number: '05',
+    // Read on the prop, not beside it: the prints on the wall are the section, so no
+    // sidebar is built for it (see `panels.js`) and the camera fills the viewport with
+    // the composition instead of shifting it clear of a panel. Unlike `screen`, this
+    // does not route the section through `screen.js` — there is no canvas to paint,
+    // scroll or rewind, only pictures already hanging in the room.
+    onProp: true,
+    // Which module reads it: the prints are looked at one at a time (`wallFrameFocus.js`).
+    propMode: 'frames',
     eyebrow: 'Education',
     title: 'Education',
     blocks: [
@@ -199,7 +242,6 @@ export const SECTIONS = {
   },
 
   blog: {
-    number: '06',
     eyebrow: 'Writing',
     title: 'Notes on systems',
     blocks: [
@@ -219,7 +261,6 @@ export const SECTIONS = {
   },
 
   testimonials: {
-    number: '07',
     eyebrow: 'References',
     title: 'References',
     blocks: [
@@ -246,49 +287,28 @@ export const SECTIONS = {
   },
 
   resume: {
-    number: '08',
+    // Read on the prop, like `contact`: the sheet on the paper tablet *is* the CV — one
+    // A4 page drawn from this same file by `portfolioPage.js` — so there is nothing to
+    // put beside it. A click on the page asks whether to download it as a PDF; see
+    // `sheetPrompt.js`.
+    onProp: true,
+    propMode: 'sheet',
     eyebrow: 'Document',
     title: 'Curriculum vitae',
-    blocks: [
-      { kind: 'intro', text: 'Four pages, PDF. The same content as this room, in a form you can forward.' },
-      {
-        kind: 'meta',
-        rows: [
-          ['File', 'Arash-Goharrostami.pdf'],
-          ['Pages', '4'],
-          ['Updated', 'August 2026'],
-        ],
-      },
-      { kind: 'download', label: 'Download PDF', href: CV_URL, filename: 'Arash-Goharrostami-CV.pdf' },
-    ],
+    blocks: [],
   },
 
   contact: {
-    number: '09',
+    // Read on the prop, like `education` below: the iPhone *is* this section. The camera
+    // goes down onto its screen and the app icons already modelled there are the links —
+    // see `phoneApps.js` for which tile opens what. There was a sidebar here once, with
+    // the same addresses as link rows and a form that composed a mail; the phone carries
+    // both now, and a panel beside it would only take back the half of the viewport the
+    // screen is being read in.
+    onProp: true,
+    propMode: 'apps',
     eyebrow: 'Contact',
     title: 'Get in touch',
-    blocks: [
-      {
-        kind: 'links',
-        items: [
-          { label: 'Email', value: PROFILE.email, href: `mailto:${PROFILE.email}` },
-          { label: 'Phone', value: '+98 911 595 0737', href: 'tel:+989115950737' },
-          { label: 'Site', value: 'arash.goharrostami.ir', href: 'https://arash.goharrostami.ir', external: true },
-          {
-            label: 'LinkedIn',
-            value: 'arash-goharrostami',
-            href: 'https://linkedin.com/in/arash-goharrostami',
-            external: true,
-          },
-          {
-            label: 'GitHub',
-            value: 'arash-goharrostami',
-            href: 'https://github.com/arash-goharrostami',
-            external: true,
-          },
-        ],
-      },
-      { kind: 'contactForm' },
-    ],
+    blocks: [],
   },
 };

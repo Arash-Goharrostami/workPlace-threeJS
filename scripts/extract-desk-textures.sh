@@ -34,4 +34,11 @@ for name in "${files[@]}"; do
 done
 
 rm -rf "$staging"
+
+# The pack stores these at a quality far past what the scene needs — its two normal maps
+# are 530 KB and 448 KB for 1024x1024 images that are under 80 KB re-encoded. Recompressing
+# here rather than as a one-off pass is what stops the next `npm run textures` from
+# quietly putting the heavy versions back.
+node "$root/scripts/shrink-textures.mjs" "$out" 1024 80
+
 echo "Done: $out ($(du -sh "$out" | cut -f1), ${#files[@]} files)"

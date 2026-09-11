@@ -12,7 +12,13 @@ import { loadGLB } from './gltfLoader.js';
  * with its length along +x, so placing one is a yaw and a spot on the floor.
  */
 
-const MODEL_URL = 'models/Power_Plug_-Outlet_-Adapter__Connector_Strip.glb';
+/**
+ * `npm run shrink -- powerStrip 1024 85 --only connector_strip,power_plug_2` took it from
+ * 521 KB to 47 KB. The source is a pack — USB ports, adapters, wall outlets and four plug
+ * variants — and this module loads two of them, so two thirds of its triangles drew parts
+ * nothing asks for. `PART` and `PLUG_PART` below are the names that decide what survives.
+ */
+const MODEL_URL = 'models/powerStrip.glb';
 const PART = 'connector_strip';
 
 /** The black plug from the same pack, put in the wall socket at the cable's far end. */

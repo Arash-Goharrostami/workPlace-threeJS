@@ -12,7 +12,17 @@ import { materialsOf } from './materials.js';
  * `carpet.js` centres the rug on it by name.
  */
 
-const MODEL_URL = 'models/Black_Computer_Chair_-_Mesh_Back_Support.glb';
+/**
+ * `npm run shrink -- officeChair 512 85` took it from 4.97 MB to 495 KB with the mesh
+ * untouched — all 136,606 triangles — because the weight was two 2048x2048 maps, one of
+ * them a 1.1 MB PNG.
+ *
+ * That PNG is the mesh back: RGBA behind a BLEND material, a real cutout rather than a
+ * flat texture, so it stays PNG. It is also the one thing here worth looking at, since a
+ * fine repeating weave is what suffers most from being resampled to 512. At 1024 it costs
+ * 743 KB.
+ */
+const MODEL_URL = 'models/officeChair.glb';
 
 /** The chair baked into Workplace.glb, which this replaces. */
 const OLD_CHAIR_NAME = 'Chair01_Chair';
@@ -49,7 +59,7 @@ const RUG_MARGIN = 4;
  * slides it along the rug's long axis to where it is actually wanted. Applied before
  * the rug clamp, so it can never push the castors off the pile.
  */
-const NUDGE = new THREE.Vector2(48, 0);
+const NUDGE = new THREE.Vector2(66.5, -18.6);
 
 /**
  * Removes the original chair and drops the new one into its place. Returns the new

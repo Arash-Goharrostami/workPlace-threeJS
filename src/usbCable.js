@@ -15,7 +15,15 @@ import { buildCable } from './cable.js';
  * edit mode and pasted back into the source, which a baked mesh cannot.
  */
 
-const MODEL_URL = 'models/USB-C_Charging_Cable_Type-C__Type-C.glb';
+/**
+ * `npm run shrink -- usbCable 1024 85 --only Cube_002_8` took it from 269 KB to 15 KB.
+ * Only the connector is taken from this file — the cord is drawn by `buildCable()` — and
+ * it was 3,092 of the pack's 13,352 triangles, the rest being the cable and a second,
+ * unused connector. `CONNECTOR_PART` below is the name that decides what survives, and it
+ * names a parent node rather than a mesh: its four meshes hang off it as `Object_4`
+ * onwards.
+ */
+const MODEL_URL = 'models/usbCable.glb';
 
 /**
  * The connector assembly in the pack — moulding, strain relief and the metal tongue.
@@ -29,6 +37,13 @@ const CONNECTOR_PART = 'Cube_002_8';
  * own units, so the assembly is fitted by measurement rather than by a scale factor.
  */
 const CONNECTOR_LENGTH = 2.4;
+
+/**
+ * Exported because a plug seated on someone else's run has to know how long it is: the
+ * tip goes half a plug past the last point of the cord, or the flex meets its middle
+ * instead of its gland. `tip()` below does exactly that for the runs this module owns.
+ */
+export const TYPE_C_LENGTH = CONNECTOR_LENGTH;
 
 /** A charging lead is thinner than a mains cord — about 3 mm across. */
 const CABLE_RADIUS = 0.16;
@@ -86,15 +101,30 @@ export async function addUsbCable({ parent, name, route, ends = [] }) {
  * One Type-C plug on its own, for the ends that belong to no run of ours — a lead
  * disappearing behind the desk, a spare left lying on the top. `forward` is the way
  * its tongue points; the cord would leave the opposite way.
+ *
+ * `finish` overrides the white moulding for a lead that is not one of Apple's white
+ * ones: the HomePod mini's is captive and comes in the speaker's own colour, and a
+ * paper-white plug on the end of a space-grey braid reads as the wrong cable.
+ *
+ * `rotation` and `scale` are the other half of `ends` on a lead, offered here too: a plug
+ * pushed into a real socket sits at an angle and a depth the cord's own direction does
+ * not give, and once one has been dressed in edit mode the readout has all three. Give
+ * them and `forward` is ignored — they say everything it would have derived.
  */
-export async function addTypeCPlug({ parent, name, position, forward = [1, 0, 0] }) {
+export async function addTypeCPlug({
+  parent, name, position, forward = [1, 0, 0], rotation, scale, finish,
+}) {
   const connector = await connectorPart();
   if (!connector) return null;
 
-  return place(parent, connector.clone(true), name, {
-    position: new THREE.Vector3().fromArray(position),
-    forward: new THREE.Vector3().fromArray(forward).normalize(),
-  });
+  const seat = rotation
+    ? fixed({ position, rotation, scale })
+    : {
+      position: new THREE.Vector3().fromArray(position),
+      forward: new THREE.Vector3().fromArray(forward).normalize(),
+    };
+
+  return place(parent, connector.clone(true), name, { ...seat, finish });
 }
 
 /**
@@ -156,13 +186,16 @@ function fixed({ position, rotation, scale }) {
 }
 
 /** Repaints one end, centres it on its own middle and sets it where it belongs. */
-function place(parent, model, name, { position, forward, rotation, scale }) {
+function place(parent, model, name, { position, forward, rotation, scale, finish }) {
   const group = new THREE.Group();
   group.name = name;
   group.add(model);
   if (scale) group.scale.fromArray(scale);
 
-  const paint = new THREE.MeshStandardMaterial({ name: `${name}_shell`, ...CONNECTOR_SPEC });
+  const paint = new THREE.MeshStandardMaterial({
+    name: `${name}_shell`,
+    ...(finish ?? CONNECTOR_SPEC),
+  });
   // An authored finish — darkenScene() must not tint it a second time.
   paint.userData.keepColor = true;
   group.traverse((node) => {

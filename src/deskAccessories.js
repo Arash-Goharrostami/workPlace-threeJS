@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { MAIN_DISPLAY_ANCHOR } from './proDisplay.js';
 
 /**
  * Two desk pieces modelled from the reference photo: a monitor riser (black steel
@@ -11,8 +12,10 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
  */
 
 // ---- Monitor riser ----------------------------------------------------------
+// Sized to sit under the landscape Pro Display XDR alone: the display is ~71.9 wide,
+// so the plate stays inset on both sides and never reaches the portrait one beside it.
 const RISER = {
-  width: 105,
+  width: 62,
   depth: 28,
   plate: 1,
   lipHeight: 1.5,
@@ -20,7 +23,7 @@ const RISER = {
   legHeight: 13,
   legRadius: 2.2,
   // Legs pulled well in from the corners, so the top overhangs them at both ends.
-  legInsetX: 14,
+  legInsetX: 9,
   legInsetZ: 5,
 };
 
@@ -165,15 +168,15 @@ export function addDeskAccessories(parent, deskBox) {
   const place = (object, x, y, z) =>
     object.position.copy(parent.worldToLocal(new THREE.Vector3(x, y, z)));
 
-  // Where each piece sits along the desk, measured from its centre.
-  const riserX = -50;
+  // The stand sits along the desk, measured from its centre. The riser does not: it is
+  // built under the main display, wherever that has been put.
   const standX = 20;
 
   /** How far in front of the desk's back edge the stand's base plate sits. */
   const standFrontGap = 31;
 
   const riser = buildMonitorRiser();
-  place(riser, centerX + riserX, surfaceY, backZ + RISER.depth / 2 + 2);
+  place(riser, MAIN_DISPLAY_ANCHOR.x, surfaceY, MAIN_DISPLAY_ANCHOR.z);
 
   const stand = buildLaptopStand();
   // Angled in towards the seat rather than square to the desk, the way a machine

@@ -1,30 +1,28 @@
 import * as THREE from 'three';
-import { materialsOf } from '../materials.js';
 
 /**
  * Makes the props themselves clickable, not just their labels.
  *
- * Hovering a readable prop lifts its emissive so it glows out of the room's dark
- * palette, and clicking it opens that section.
+ * Hovering a readable prop rims it with light — see `outline.js`, which owns what that
+ * looks like — and clicking it opens that section.
  *
- * The *glow* is recomputed once per rendered frame off the last pointer position, so a
+ * The *rim* is recomputed once per rendered frame off the last pointer position, so a
  * fast sweep across the desk costs one cast, not thirty. The *click* casts again on
  * release rather than trusting that frame's answer: the two are only the same when a
  * frame has been drawn in between, which is not guaranteed on a backgrounded tab, on a
  * throttled one, or when press and release fall inside a single frame.
  *
  * A click here means a press and release in roughly the same place: orbiting the room
- * is a drag on the same canvas, and letting go of a drag over a prop must not open it.
+ * is a drag on the same canvas, and letting go of a drag over a prop must not open it —
+ * nor, once a section is open, close it.
  */
 
 /** How far the pointer may travel between press and release and still count as a click. */
 const CLICK_SLOP = 4;
 
-/** Emissive added on hover, and the tint it is added in. */
-const HOVER_INTENSITY = 0.35;
-const HOVER_COLOR = 0x6ea8fe;
-
-export function setupPicking({ anchors, camera, canvas, onOpen, onHover }) {
+export function setupPicking({
+  anchors, camera, canvas, outlines, onOpen, onHover, onDismiss, onScreenClick, onScreenHover,
+}) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   const targets = Object.entries(anchors).map(([key, anchor]) => ({ key, object: anchor.object }));
@@ -33,6 +31,15 @@ export function setupPicking({ anchors, camera, canvas, onOpen, onHover }) {
   let inside = false;
   let pressed = null;
   let enabled = true;
+  let reading = null;
+  /**
+   * Where the pointer last landed on the prop being read, in that plane's UVs.
+   *
+   * Kept because the wheel needs it and a wheel is not a cast: `index.js` has to know
+   * which column of a window the pointer is over before it can decide what to scroll,
+   * and the once-a-frame cast in `update()` has already worked that out.
+   */
+  let screenUv = null;
 
   /** Puts an event's position into the -1..1 space the raycaster wants. */
   const track = (event) => {
@@ -54,29 +61,64 @@ export function setupPicking({ anchors, camera, canvas, onOpen, onHover }) {
   canvas.addEventListener('pointerup', (event) => {
     const from = pressed;
     pressed = null;
-    if (!enabled || !from) return;
+    if (!from) return;
     if (Math.hypot(event.clientX - from.x, event.clientY - from.y) > CLICK_SLOP) return;
 
     // Cast from where the pointer actually is now. `hovered` is a frame's worth of
     // stale, and on a click that lands between two frames it is still null.
     track(event);
-    const key = cast();
+
+    // While a section is open the room is not browsable, but the props are still
+    // reachable: another readable prop is opened outright, the way a dock button
+    // does it, and a click on anything else puts the camera back.
+    if (!enabled) {
+      const { key, hit } = cast();
+      // The one thing still live while reading: a window drawn on the prop's own
+      // screen, whose rows are clicked where they are. Only for the prop being read —
+      // clicking a monitor from across the room has to fly to it, not pick a row off
+      // it, which is the hop below.
+      if (key && key === reading && onScreenClick?.(key, hit)) return;
+      if (key && key !== reading) {
+        onOpen(key);
+        return;
+      }
+      if (reading && key !== reading) onDismiss();
+      return;
+    }
+
+    const { key } = cast();
     if (key) onOpen(key);
   });
 
-  /** Recasts from the last pointer position and moves the glow if it landed elsewhere. */
+  /** Recasts from the last pointer position and moves the rim if it landed elsewhere. */
   const update = () => {
-    const key = enabled && inside ? cast() : null;
+    // A window on a screen being read keeps its own hover, so a row lights under the
+    // pointer even though the room's rims are off.
+    if (!enabled) {
+      if (!reading) return;
+      const { key, hit } = inside ? cast() : { key: null, hit: null };
+      screenUv = key === reading ? hit.uv : null;
+      // The whole hit, not just its UV: a section read off a group of props — the wall
+      // frames — needs to know *which* mesh the pointer is on, which the UV cannot say.
+      const onRow = onScreenHover?.(reading, key === reading ? hit : null);
+      canvas.style.cursor = onRow ? 'pointer' : '';
+      return;
+    }
+
+    const { key } = inside ? cast() : { key: null };
     if (key === hovered) return;
 
-    if (hovered) paint(anchors[hovered].object, false);
     hovered = key;
-    if (hovered) paint(anchors[hovered].object, true);
+    outlines.hover(hovered ? anchors[hovered].object : null);
 
     canvas.style.cursor = hovered ? 'pointer' : '';
     onHover(hovered);
   };
 
+  /**
+   * The nearest readable prop under the pointer, and the intersection itself — the hit
+   * carries the UV a window on that prop's screen needs to turn a click into a row.
+   */
   function cast() {
     raycaster.setFromCamera(pointer, camera);
     // Every readable prop at once, so the nearest wins outright — casting against the
@@ -85,25 +127,41 @@ export function setupPicking({ anchors, camera, canvas, onOpen, onHover }) {
       targets.map((t) => t.object),
       true
     )[0];
-    if (!hit) return null;
-    return targets.find((t) => contains(t.object, hit.object))?.key ?? null;
+    if (!hit) return { key: null, hit: null };
+    return { key: targets.find((t) => contains(t.object, hit.object))?.key ?? null, hit };
   }
 
   /**
    * While a section is open the props are no longer live: the room is being read, not
-   * browsed, and a stray glow behind the sidebar only distracts.
+   * browsed, and a stray rim behind the sidebar only distracts. The prop being read
+   * keeps its own, held lit by `index.js`.
    */
+  /** Which prop is being read, so a click off it can be told from a click on it. */
+  const setReading = (key) => {
+    reading = key ?? null;
+  };
+
   const setEnabled = (value) => {
     enabled = value;
+    if (value) {
+      onScreenHover?.(reading, null);
+      screenUv = null;
+    }
     if (!value && hovered) {
-      paint(anchors[hovered].object, false);
+      outlines.hover(null);
       hovered = null;
       canvas.style.cursor = '';
       onHover(null);
     }
   };
 
-  return { update, setEnabled, get hovered() { return hovered; } };
+  return {
+    update,
+    setEnabled,
+    setReading,
+    get hovered() { return hovered; },
+    get screenUv() { return screenUv; },
+  };
 }
 
 /** Whether `node` sits anywhere under `root`. */
@@ -112,32 +170,4 @@ function contains(root, node) {
     if (o === root) return true;
   }
   return false;
-}
-
-/**
- * Lifts or restores a prop's emissive. The original values are stashed on the
- * material the first time it is touched, so restoring is exact even for the props
- * whose modules authored an emissive of their own (a lit screen, say).
- */
-function paint(object, on) {
-  object.traverse((node) => {
-    if (!node.isMesh) return;
-    for (const material of materialsOf(node)) {
-      if (!material?.emissive) continue;
-      if (!material.userData.hoverBase) {
-        material.userData.hoverBase = {
-          color: material.emissive.clone(),
-          intensity: material.emissiveIntensity ?? 1,
-        };
-      }
-      const base = material.userData.hoverBase;
-      if (on) {
-        material.emissive.setHex(HOVER_COLOR);
-        material.emissiveIntensity = HOVER_INTENSITY;
-      } else {
-        material.emissive.copy(base.color);
-        material.emissiveIntensity = base.intensity;
-      }
-    }
-  });
 }

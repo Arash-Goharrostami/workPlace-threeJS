@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { loadGLB } from './gltfLoader.js';
 import { materialsOf } from './materials.js';
 import { fillDeskCorner } from './fillDeskCorner.js';
 import { applyDeskMaterials } from './deskMaterials.js';
 
-const MODEL_URL = 'models/Desk.glb';
+const MODEL_URL = 'models/desk.glb';
 
 /** The two desks in Workplace.glb that get swapped out. */
 const OLD_DESK_NAMES = ['Table01_Desk01', 'Table01_Table01'];
@@ -51,7 +51,7 @@ export async function replaceDesks(model) {
     disposeSubtree(desk);
   }
 
-  const gltf = await new GLTFLoader().loadAsync(MODEL_URL);
+  const gltf = await loadGLB(MODEL_URL);
   const desk = gltf.scene;
   desk.name = 'Desk_replacement';
 

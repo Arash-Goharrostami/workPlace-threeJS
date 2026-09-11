@@ -18,9 +18,23 @@ import { materialsOf } from './materials.js';
  * object on its own origin, then size and seat it. Each step is measured off the model
  * as it actually arrives rather than typed in, so re-exporting the source — which
  * would move every one of those numbers — changes nothing here.
+ *
+ * `npm run shrink floorSocket 256 85 0.12` took it from 7.42 MB to 159 KB. It was absurdly
+ * over-built for something whose faceplate ends up 12 across: two metallic/roughness PNGs
+ * carried 2.7 MB between them — NIKEL's was 2048x2048 and 1.99 MB, and is 2 KB at 256,
+ * which is the measure of how little was in it — and the mesh was 173,570 triangles, now
+ * 21,327 over the same 33 primitives.
+ *
+ * Decimating a model this module *measures* is safe only because it measures: every step
+ * above reads the geometry as it actually arrives, so a lighter mesh moves the numbers and
+ * the code follows. Nothing here is typed in against the old shape.
+ *
+ * All seven material names survive, which matters: `BOX_MATERIAL` below is looked up by
+ * name, and the compression pass merges materials that are byte-identical. These seven
+ * are not.
  */
 
-const MODEL_URL = 'models/SOCKET__DE_PISO.glb';
+const MODEL_URL = 'models/floorSocket.glb';
 
 /** The material the back box wears. The source names its parts in Spanish. */
 const BOX_MATERIAL = 'CAJA';

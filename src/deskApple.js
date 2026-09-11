@@ -26,10 +26,10 @@ const SCALE = 100;
  * rows fit inside: the iPad and phone at the back, the watch and pencil ahead of them.
  */
 const LAYOUT = {
-  ipad: { x: -7.8, z: 48.7 },
-  iphone: { x: 48.2, z: 46.8 },
-  watch: { x: 56.5, z: 49.8 },
-  pencil: { x: 6.7, z: 54 },
+  ipad: { x: -11.1, z: 48.7 },
+  iphone: { x: 45.8, z: 52.9 },
+  watch: { x: 52.2, z: 49.8 },
+  pencil: { x: 3.4, z: 54 },
 };
 
 /**
@@ -60,9 +60,9 @@ const WATCH_REPAINT = {
 };
 
 const MODELS = {
-  ipad: 'models/ipad-pro.glb',
-  pencil: 'models/apple-pencil.glb',
-  watch: 'models/apple-watch-se.glb',
+  ipad: 'models/ipadPro.glb',
+  pencil: 'models/applePencil.glb',
+  watch: 'models/appleWatchSe.glb',
 };
 
 /** Loads all four and lays them on the desk top in front of the display. */

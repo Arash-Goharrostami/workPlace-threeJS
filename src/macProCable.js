@@ -12,7 +12,15 @@ import { buildCable } from './cable.js';
  * `buildCable()`, so the run can be dressed in edit mode like the wall cords.
  */
 
-const MODEL_URL = 'models/Power_cable_hight-poly.glb';
+/**
+ * Only the plug and socket are taken from this file — the run between them is drawn by
+ * `buildCable()`. That turned out to be almost the whole model: 228,128 of its 240,032
+ * triangles were three `curve3` meshes drawing a cable nothing loads, and
+ * `npm run shrink -- powerCable 1024 85 --only polySurface89,polySurface90` dropped them,
+ * taking the file from 4.86 MB to 33 KB. Both connectors keep every one of their 11,904
+ * triangles, so nothing that is actually rendered changed.
+ */
+const MODEL_URL = 'models/powerCable.glb';
 
 /** The parts worth keeping out of the pack; everything else is the model's own flex. */
 const PLUG_PART = 'polySurface89';

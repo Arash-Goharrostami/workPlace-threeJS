@@ -8,9 +8,18 @@ import { loadGLB } from './gltfLoader.js';
  * The source is authored in this scene's centimetres at true size — 45 x 53.2 x 21.9,
  * a real tower's depth, height and width — but laid out with its depth along X, so it
  * needs a quarter turn to face the room.
+ *
+ * `npm run shrink macPro 512 85 0.22` took it from 10.2 MB to 933 KB. Unlike the
+ * ScreenBar, the weight here was geometry, so it is the one model so far that needed
+ * decimating: 252k triangles down to 66k, over the same 137 primitives. The exporter had
+ * also left sixteen 1x1 placeholder PNGs behind; those are gone.
+ *
+ * The three BLEND-mode panels keep their alpha, which is the thing to look at first if
+ * the tower ever renders wrong — the front lattice is a cut-out texture, not geometry, so
+ * losing the alpha shows up as a solid face rather than as a missing one.
  */
 
-const MODEL_URL = 'models/Mac_Pro.glb';
+const MODEL_URL = 'models/macPro.glb';
 
 /** Turns the machine's front from -x round to +z, out towards the room. */
 const FACE_ROOM = Math.PI / 2;

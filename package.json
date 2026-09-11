@@ -9,6 +9,8 @@
     "preview": "vite preview",
     "convert": "bash scripts/convert-usdz.sh",
     "strip": "node scripts/strip-glb-image.mjs",
+    "shrink": "node scripts/shrink-glb.mjs",
+    "shrink:textures": "node scripts/shrink-textures.mjs",
     "textures": "bash scripts/extract-desk-textures.sh",
     "apple": "bash scripts/import-apple-models.sh",
     "split": "bash scripts/split-display-mount.sh",

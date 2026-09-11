@@ -11,9 +11,15 @@ import { loadGLB } from './gltfLoader.js';
  * Its 12.8 MB metallic/roughness PNG was stripped out of the GLB (see
  * `scripts/strip-glb-image.mjs`, run through `npm run strip`); the roughness it carried
  * is given back below as constants, which is all a plastic puck needs.
+ *
+ * The base colour it kept was a 4096x4096 JPEG, for something 7.5 across; `npm run shrink
+ * benqScreenbarRemote 512` resampled it to 512 and Draco-compressed the three
+ * meshes, taking the file from 1.44 MB to 65 KB. Nothing here had to change for it — the
+ * shared loader in `gltfLoader.js` already carries the Draco decoder, and the node names
+ * `FINISH` keys off came through the compression untouched.
  */
 
-const MODEL_URL = 'models/BenQ_Screenbar_Halo_Remote.glb';
+const MODEL_URL = 'models/benqScreenbarRemote.glb';
 
 /**
  * Where the puck ended up, in world centimetres and degrees — set by hand in edit mode and

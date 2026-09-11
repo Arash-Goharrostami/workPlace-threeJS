@@ -3,8 +3,8 @@ import { loadGLB } from './gltfLoader.js';
 
 /**
  * The two Apple Pro Display XDRs: the main one on the monitor riser, and a second
- * standing square on the desk's right-hand arm. Run `npm run apple` to (re-)import the
- * model and its Draco decoder.
+ * standing beside it, portrait, on a position set by hand. Run `npm run apple` to
+ * (re-)import the model and its Draco decoder.
  *
  * One module for both, the way `deskApple.js` owns four products: they are the same
  * display, and split apart they would repeat the scale, the shadow flags and the
@@ -13,33 +13,58 @@ import { loadGLB } from './gltfLoader.js';
  * Like the MacBook, the source is authored in metres, Y-up, standing on y = 0 and
  * centred on its stand's footprint — so it only needs scaling and seating.
  *
- * The corner one then turns portrait, and only its panel does: the screen and its shell
+ * The second one then turns portrait, and only its panel does: the screen and its shell
  * roll a quarter turn about the mount's centre while the stand and the mount plate stay
  * square, so the plate's bolts keep facing the stand they bolt to. That is possible
  * because the plate is a node of its own in the GLB — `scripts/split-display-mount.py`
  * is what cut it out — so nothing here has to cut geometry or hold a seam together.
  */
 
-const MODEL_URL = 'models/pro-display-xdr.glb';
+/**
+ * `npm run shrink proDisplayXdr 512 85 0.35` took it from 4.65 MB to 895 KB.
+ *
+ * Its geometry arrived Draco-compressed already, so the usual compression step had
+ * nothing left to take and the saving had to come from elsewhere: the eleven maps were
+ * PNGs — two of them 470 KB and 384 KB at only 512x512 — which re-encode to JPEG for a
+ * tenth of that, and the mesh was then decimated from 253k triangles to 90k.
+ *
+ * The `panel` and `xdr_mount` nodes `PANEL` and `MOUNT` look up by name survive all of
+ * it, as does the mount split that `scripts/split-display-mount.py` produced.
+ */
+const MODEL_URL = 'models/proDisplayXdr.glb';
 
 /** Metres (the model's units) to this scene's centimetres. */
 const SCALE = 100;
 
 /**
- * Nudges across and along the riser. The display sits off its centre, slid along
- * the riser towards the laptop rather than squarely in the middle of it.
+ * Where the main display stands, in world centimetres — set by hand in edit mode and
+ * copied out of its readout.
+ *
+ * This is the one knob for the whole cluster: the riser is built under this point
+ * (`addDeskAccessories` in `deskAccessories.js`) and the ScreenBar hangs off the display
+ * itself (`screenbar.js`), so moving the monitor is moving these two numbers. Height is
+ * not among them — that still comes off the riser's top face.
  */
-const OFFSET = new THREE.Vector2(18, 0);
+export const MAIN_DISPLAY_ANCHOR = { x: -4.0, z: -115.5 };
 
 /** The screen and its shell, the one part of the display that turns. */
-const PANEL = 'panel';
+export const PANEL = 'panel';
 
 /** The mount plate, whose centre the panel turns about — it sits on the screen's axis. */
 const MOUNT = 'xdr_mount';
 
-/** Gaps left between the second display and the desk's right and front edges. */
-const RIGHT_MARGIN = 6;
-const FRONT_MARGIN = 6;
+/**
+ * Where the second display ended up, in world centimetres and degrees — set by hand in
+ * edit mode and copied out of its readout. Absolute rather than measured off the desk:
+ * it was walked well clear of the right-hand corner it first stood in, so a corner is
+ * no longer what places it. Scale is the loader's, so only these two are kept.
+ */
+const SIDE_TRANSFORM = {
+  // y is the desk surface: the riser no longer reaches under this one, so it stands
+  // on the desk itself rather than on the plate.
+  position: [-63.9, 85.4, -107.7],
+  rotationY: 20,
+};
 
 /** Loads the main display and stands it on the riser's top surface. */
 export async function addProDisplay(parent, riser) {
@@ -51,20 +76,27 @@ export async function addProDisplay(parent, riser) {
   return display;
 }
 
-/**
- * Loads the second display, turns its panel portrait and stands it in the corner of the
- * desk's right-hand arm — the only stretch of desk left with room for one.
- */
-export async function addSideDisplay(parent, deskBox) {
-  if (!deskBox) return null;
-
+/** Loads the second display, turns its panel portrait and sets it where it was left. */
+export async function addSideDisplay(parent) {
   const display = await loadDisplay(parent, 'Pro_Display_XDR_2');
 
-  // Before the seating, so the corner is measured against the portrait footprint.
+  // Before the yaw: the portrait turn takes the screen's axis to be world Z, which it
+  // only is while the display still faces straight forward.
   turnPanelPortrait(display);
-  standInCorner(display, deskBox);
+  placeSideDisplay(display);
 
   return display;
+}
+
+/** Puts the second display on its hand-set world position and yaw. */
+function placeSideDisplay(display) {
+  const parent = display.parent;
+
+  display.rotation.set(0, THREE.MathUtils.degToRad(SIDE_TRANSFORM.rotationY), 0, 'YXZ');
+  display.position.copy(
+    parent.worldToLocal(new THREE.Vector3().fromArray(SIDE_TRANSFORM.position))
+  );
+  display.updateMatrixWorld(true);
 }
 
 /** Loads one display, scales it to the scene and repairs its stand's shading. */
@@ -89,17 +121,18 @@ async function loadDisplay(parent, name) {
   return display;
 }
 
-/** Sits the display's foot on the riser's top face, centred on it. */
+/** Sits the display's foot on the riser's top face, at MAIN_DISPLAY_ANCHOR. */
 function standOnRiser(display, riser) {
   riser.updateMatrixWorld(true);
 
   const top = riser.getObjectByName('riser top');
   if (!top) return;
 
+  // Height off the riser, position across the desk from the anchor.
   const box = new THREE.Box3().setFromObject(display);
   const target = top.getWorldPosition(new THREE.Vector3());
-  target.x += OFFSET.x;
-  target.z += OFFSET.y;
+  target.x = MAIN_DISPLAY_ANCHOR.x;
+  target.z = MAIN_DISPLAY_ANCHOR.z;
 
   const anchor = new THREE.Vector3(
     box.getCenter(new THREE.Vector3()).x,
@@ -167,26 +200,3 @@ function restoreWorld(object, world) {
   object.updateMatrixWorld(true);
 }
 
-/** Moves an object by a world-space delta, through whatever its parent does to it. */
-function shiftBy(object, delta) {
-  const parent = object.parent;
-  const origin = parent.worldToLocal(new THREE.Vector3());
-  object.position.add(parent.worldToLocal(delta).sub(origin));
-  object.updateMatrixWorld(true);
-}
-
-/** Stands the second display in the corner of the desk's right-hand arm. */
-function standInCorner(display, deskBox) {
-  const box = new THREE.Box3().setFromObject(display);
-  const centre = box.getCenter(new THREE.Vector3());
-  const size = box.getSize(new THREE.Vector3());
-
-  const target = new THREE.Vector3(
-    deskBox.max.x - RIGHT_MARGIN - size.x / 2,
-    deskBox.max.y,
-    deskBox.max.z - FRONT_MARGIN - size.z / 2
-  );
-  const anchor = new THREE.Vector3(centre.x, box.min.y, centre.z);
-
-  shiftBy(display, target.sub(anchor));
-}

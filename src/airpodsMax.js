@@ -5,12 +5,20 @@ import { loadGLB } from './gltfLoader.js';
  * A pair of AirPods Max lying on the desk, in silver. Run
  * `npm run convert AirPods_Max` to (re-)import the model.
  *
+ * `npm run shrink airPodsMax 512` took it from 5.03 MB to 295 KB. Almost all of that was
+ * three 2048x2048 maps on a pair of headphones the size of a fist — the metallic/roughness
+ * one alone was 2.16 MB as a PNG and is 34 KB as a JPEG. No triangles were touched; the
+ * mesh is still the 46,640 it arrived with.
+ *
+ * Its one material is BLEND and its base colour is a real cut-out, so that map stays PNG
+ * — the mesh of the ear cushions is texture rather than geometry.
+ *
  * Two things the source needs before it can go down: it is exported about 1.6× life
  * size, and it is baked as the space-grey pair — a dark blue-grey texture that no
  * material tint can lift to silver, so the bake itself is re-tinted (see `silverTexture`).
  */
 
-const MODEL_URL = 'models/AirPods_Max.glb';
+const MODEL_URL = 'models/airPodsMax.glb';
 
 /** A real pair, ear cup to ear cup. What the import is scaled to fit. */
 const REAL_WIDTH = 16.84;
@@ -25,8 +33,8 @@ const REAL_WIDTH = 16.84;
  * width, which is where the readout's ×0.625 comes from in the first place.
  */
 const TRANSFORM = {
-  position: [65.5, 89.3, -66.8],
-  rotation: [-82.4, -142.7, 176.7],
+  position: [-3.9, 89.3, -90.8],
+  rotation: [-82.4, -103, 176.7],
 };
 
 /** The silver the bake is remapped onto: shadow, and the aluminium at full light. */

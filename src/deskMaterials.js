@@ -4,7 +4,18 @@ import * as THREE from 'three';
  * The desk's materials, taken from the Computer Workspace Pack usdz — the same two
  * that dress its desk: `Dark_Wood_Final` on the tabletop (its Object_3) and
  * `Metal_PBR_Final` on the frame (its Object_16). Run `npm run textures` to refresh
- * the image files from the pack.
+ * the image files from the pack — that step recompresses them on the way in, because the
+ * pack stores its normal maps at roughly seven times the size they need.
+ *
+ * Because this function overwrites `node.material` on every mesh it walks, `desk.glb`
+ * needs no textures of its own, and carries none: they were 4.6 MB of its 5.57 that were
+ * downloaded, decoded and then thrown away on every load. It is now 77 KB. If you
+ * re-import it with `npm run convert -- Desk` you will get the heavy file back — re-run
+ * `node scripts/shrink-glb.mjs desk --no-textures` after.
+ *
+ * The one thing that must survive that stripping is `TEXCOORD_0`: `makeMetalMaterial`
+ * pins the frame's four maps to channel 0, the model's own UVs. Only the tabletop's wood
+ * uses the planar set this file generates.
  */
 
 const TEXTURE_DIR = 'textures/desk/';

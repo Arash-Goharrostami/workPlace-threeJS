@@ -10,7 +10,17 @@ import { loadGLB } from './gltfLoader.js';
  * y = 0 and centred on its own footprint: 1.15 m tall on a 33 x 30 cm base.
  */
 
-const MODEL_URL = 'models/guitar-on-stand.glb';
+/**
+ * `npm run shrink -- guitarOnStand 512 85 0.8` took it from 4.19 MB to 951 KB.
+ *
+ * Unlike the other props this one cannot be shrunk on textures alone: its geometry is
+ * 902 KB even untouched — 250,000 triangles for something standing against the far wall —
+ * so it is the one model here carrying a deliberate mesh reduction, down to 172,724. That
+ * is a 31% cut, chosen after a 67% one read badly; the body's curve is what goes first if
+ * this is ever pushed further. Textures are at 512, where the three metallic/roughness
+ * maps that were 1 MB of PNG between them cost almost nothing.
+ */
+const MODEL_URL = 'models/guitarOnStand.glb';
 
 /** Metres (the model's units) to this scene's centimetres. */
 const SCALE = 100;

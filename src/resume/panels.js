@@ -1,4 +1,4 @@
-import { SECTIONS, PROFILE } from './content.js';
+import { SECTIONS } from './content.js';
 
 /**
  * Builds the reading sidebar from `content.js` and wires everything that opens or
@@ -22,6 +22,12 @@ export function setupPanels({ order, container, onOpen, onClose }) {
       console.warn(`[resume] no content for section "${key}"`);
       continue;
     }
+    // A section read off its own prop has no sidebar to build — whether that prop is a
+    // screen it is painted onto or, like the wall frames, something simply looked at.
+    // `widthOf` then returns 0 for it, which leaves the camera's lens shift centred on
+    // the prop rather than pushing it aside for a panel that never arrives.
+    if (section.screen || section.onProp) continue;
+
     const panel = renderSection(section);
     panel.dataset.panel = key;
     container.appendChild(panel);
@@ -32,7 +38,9 @@ export function setupPanels({ order, container, onOpen, onClose }) {
 
   const show = (key) => {
     for (const panel of Object.values(panels)) panel.classList.remove('is-open');
-    openKey = key && panels[key] ? key : null;
+    // Keyed off the section list, not off `panels`: a section read on its own prop
+    // has no panel here, and is still perfectly open.
+    openKey = key && order.includes(key) ? key : null;
     return openKey;
   };
 
@@ -69,7 +77,7 @@ export function setupPanels({ order, container, onOpen, onClose }) {
 function renderSection(section) {
   const panel = el('article', 'panel');
   panel.append(
-    el('div', 'panel-eyebrow', `${section.number} — ${section.eyebrow}`),
+    el('div', 'panel-eyebrow', section.eyebrow),
     el('h2', 'panel-title', section.title)
   );
   for (const block of section.blocks) {
@@ -204,33 +212,6 @@ const BLOCKS = {
     a.setAttribute('download', block.filename);
     return a;
   },
-
-  contactForm: () => {
-    const form = el('form', 'contact-form');
-    const name = field(form, 'c-name', 'Your name', 'input', { type: 'text', placeholder: 'Name' });
-    const from = field(form, 'c-from', 'Your email', 'input', {
-      type: 'email',
-      placeholder: 'you@company.com',
-    });
-    const message = field(form, 'c-msg', 'Message', 'textarea', {
-      rows: 4,
-      placeholder: 'What are you building?',
-    });
-
-    const send = el('button', 'btn', 'Send message');
-    send.type = 'submit';
-    form.append(send, el('p', 'form-note', 'Opens your mail client with the message prefilled.'));
-
-    form.addEventListener('submit', (event) => {
-      event.preventDefault();
-      const signature = `\n\n— ${name.value}${from.value ? ` (${from.value})` : ''}`;
-      const subject = encodeURIComponent(`Hello from your site — ${name.value}`);
-      const body = encodeURIComponent(message.value + signature);
-      window.location.href = `mailto:${PROFILE.email}?subject=${subject}&body=${body}`;
-    });
-
-    return form;
-  },
 };
 
 /* -------------------------------------------------------------------- helpers */
@@ -252,16 +233,4 @@ function tagRow(tags) {
   const row = el('div', 'tag-row');
   for (const tag of tags) row.append(el('span', 'tag', tag));
   return row;
-}
-
-function field(form, id, label, tag, attrs) {
-  const wrap = el('div', 'field');
-  const labelEl = el('label', '', label);
-  labelEl.htmlFor = id;
-  const input = el(tag, 'input');
-  input.id = id;
-  for (const [key, value] of Object.entries(attrs)) input[key] = value;
-  wrap.append(labelEl, input);
-  form.append(wrap);
-  return input;
 }

@@ -10,7 +10,17 @@ import { STAND_SLOPE } from './deskAccessories.js';
  * this scene works in centimetres, so it only needs scaling and seating.
  */
 
-const MODEL_URL = 'models/macbook-pro-16.glb';
+/**
+ * `npm run shrink -- macbookPro16 1024 85` took it from 3.75 MB to 669 KB, and nothing
+ * about the model was thrown away to get there: all 112,620 triangles, all 60 primitives
+ * and every texture at its native resolution. The saving is entirely that fourteen of its
+ * sixteen maps were PNGs with no alpha to justify one, plus the UV sets no material reads.
+ *
+ * An earlier pass reached 358 KB by decimating to 12,977 triangles and it looked wrong,
+ * which is the note worth keeping: on this model the textures were the waste and the mesh
+ * was not.
+ */
+const MODEL_URL = 'models/macbookPro16.glb';
 
 /** Metres (the model's units) to this scene's centimetres. */
 const SCALE = 100;

@@ -172,16 +172,21 @@
         background: var(--accent); border: 0; border-radius: 7px;
       }
       .btn:hover { background: #86b7ff; }
+      .btn-ghost { color: var(--ink-dim); background: transparent; border: 1px solid var(--line); }
+      .btn-ghost:hover { color: var(--ink); background: rgba(255, 255, 255, .04); }
 
-      .contact-form { display: grid; gap: 13px; margin-top: 26px; }
-      .field { display: grid; gap: 6px; }
-      .field label { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); }
-      .input {
-        width: 100%; padding: 10px 12px; font: inherit; color: var(--ink); resize: vertical;
-        background: rgba(255, 255, 255, .03); border: 1px solid var(--line); border-radius: 7px;
+      /* The question the paper tablet asks — see `src/resume/sheetPrompt.js`. A small
+         card over the sheet rather than a sidebar: the CV is read on the prop itself. */
+      #ask {
+        position: fixed; left: 50%; top: 50%; z-index: 25; display: none;
+        width: min(340px, calc(100vw - 48px)); padding: 22px 24px; box-sizing: border-box;
+        transform: translate(-50%, -50%);
+        background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+        backdrop-filter: blur(16px); text-align: center;
       }
-      .input:focus { outline: none; border-color: var(--accent); }
-      .form-note { margin: 0; font-size: 11.5px; color: var(--ink-faint); }
+      #ask.is-open { display: block; }
+      #ask p { margin: 0; color: var(--ink); font-size: 14px; line-height: 1.6; }
+      #ask .btn { margin: 16px 4px 0; }
 
       /* --------------------------------------------------------------- debug */
 
@@ -270,6 +275,13 @@
     </div>
 
     <button id="back" type="button" data-close="1">← Back to the room</button>
+
+    <!-- Wired by `src/resume/sheetPrompt.js`: shown on a click on the paper tablet's page. -->
+    <div id="ask">
+      <p>Would you like to download the CV as a PDF?</p>
+      <a class="btn" data-yes href="#">Yes, download PDF</a>
+      <button class="btn btn-ghost" type="button" data-no>Not now</button>
+    </div>
     <div id="hint">Drag to orbit · scroll to zoom</div>
 
     <!-- Filled from `src/resume/content.js`, by `src/resume/panels.js`. -->

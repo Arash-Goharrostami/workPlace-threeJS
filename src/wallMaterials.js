@@ -22,11 +22,12 @@ const NON_WALLS = new Set(['floor', 'ceiling']);
 const CONCRETE_TEXTURE_SPAN = 280;
 
 /**
- * How far the concrete is pulled down, matching what `darkenScene.js` does to the
- * rest of the room. Applied here because the material opts out of that pass: with a
- * map it would otherwise take the much harder tint meant for the desk's laminate.
+ * The colour the concrete is tinted to. The map multiplies this, so a dark slate-navy
+ * both darkens the walls and gives them their cold cast in one step. Set here rather
+ * than in `darkenScene.js` because the material opts out of that pass: with a map it
+ * would otherwise take the much harder tint meant for the desk's laminate.
  */
-const DARKEN = 0.62;
+const WALL_TINT = 0x454f66;
 
 const loader = new THREE.TextureLoader();
 
@@ -69,7 +70,7 @@ function makeConcreteMaterial() {
     roughness: 0.95,
     metalness: 0,
   });
-  material.color.multiplyScalar(1 - DARKEN);
+  material.color.setHex(WALL_TINT);
   material.userData.keepColor = true;
   return material;
 }
