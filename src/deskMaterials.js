@@ -82,10 +82,10 @@ function makeWoodMaterial(box) {
 
   const material = new THREE.MeshStandardMaterial({
     name: 'desk_wood_top',
-    map: texture('Dark_Wood_Final_baseColor.jpg', { srgb: true, repeat }),
-    roughnessMap: texture('Dark_Wood_Final_metallicRoughness_rough.jpg', { repeat }),
-    metalnessMap: texture('Dark_Wood_Final_metallicRoughness_metal_scale0.jpg', { repeat }),
-    normalMap: texture('Dark_Wood_Final_normal_norm.jpg', { repeat }),
+    map: texture('Dark_Wood_Final_baseColor.webp', { srgb: true, repeat }),
+    roughnessMap: texture('Dark_Wood_Final_metallicRoughness_rough.webp', { repeat }),
+    metalnessMap: texture('Dark_Wood_Final_metallicRoughness_metal_scale0.webp', { repeat }),
+    normalMap: texture('Dark_Wood_Final_normal_norm.webp', { repeat }),
     roughness: 1,
     metalness: 1,
   });
@@ -97,10 +97,10 @@ function makeWoodMaterial(box) {
 function makeMetalMaterial() {
   const material = new THREE.MeshStandardMaterial({
     name: 'desk_metal_frame',
-    map: texture('Metal_PBR_Final_baseColor.jpg', { srgb: true, channel: 0 }),
-    roughnessMap: texture('Metal_PBR_Final_metallicRoughness_rough.jpg', { channel: 0 }),
-    metalnessMap: texture('Metal_PBR_Final_metallicRoughness_metal_scale0.jpg', { channel: 0 }),
-    normalMap: texture('Metal_PBR_Final_normal_norm.jpg', { channel: 0 }),
+    map: texture('Metal_PBR_Final_baseColor.webp', { srgb: true, channel: 0 }),
+    roughnessMap: texture('Metal_PBR_Final_metallicRoughness_rough.webp', { channel: 0 }),
+    metalnessMap: texture('Metal_PBR_Final_metallicRoughness_metal_scale0.webp', { channel: 0 }),
+    normalMap: texture('Metal_PBR_Final_normal_norm.webp', { channel: 0 }),
     roughness: 1,
     metalness: 1,
   });

@@ -5,6 +5,7 @@ import { loadModel } from './loadModel.js';
 import { setupDebugPanel } from './debugPanel.js';
 import { setupEditor } from './editor.js';
 import { setupResume } from './resume/index.js';
+import { setupGuitarStrum } from './guitarStrum.js';
 import { ui } from './overlay.js';
 
 // The room has two modes. By default it is a resume: the props themselves are the
@@ -51,6 +52,8 @@ let resume = null;
 loadModel({ scene, camera, controls, environment, ui }).then((model) => {
   environment.refreshShadows();
   if (!model) return;
+  // In both modes: the guitar answers a click whatever else the room is doing.
+  setupGuitarStrum({ camera, canvas: renderer.domElement, guitar: model.getObjectByName('Guitar_on_stand') });
   if (DEBUG) setupEditor({ scene, camera, renderer, controls, model, environment });
   else resume = setupResume({ scene, camera, renderer, controls, model });
 });

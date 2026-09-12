@@ -28,6 +28,53 @@ export const CV_URL = 'cv/Arash-Goharrostami.pdf';
 /** The name the browser saves it under. */
 export const CV_FILENAME = 'Arash-Goharrostami-CV.pdf';
 
+/** The pool the pad's notes are drawn from — one line each, as they would be jotted. */
+const JOTS = [
+  'check nginx keepalive on the edge box',
+  'why does the socket count spike at 03:00?',
+  'rotate the staging certs before Friday',
+  'read the k8s HPA docs properly this time',
+  'move the queue consumers to their own pod',
+  'p95 is the number that matters, not the mean',
+  'ask about the RabbitMQ prefetch setting',
+  'write the post about the 65% latency cut',
+  'coffee — then the migration',
+  'types first, then the feature',
+  'the cache is lying. verify TTLs',
+  'fix the flaky e2e on the login flow',
+  'try Bun for the build script',
+  'backup the home server. actually do it',
+  'guitar — 20 min, no excuses',
+  'idea: draw the desk in three.js',
+];
+
+/** How many lines land on the pad, and how many of those are crossed off. */
+const JOT_COUNT = 8;
+const JOT_DONE = [2, 3];
+
+/**
+ * A different page of notes each visit: the pool shuffled, the first few taken, and two
+ * or three of them struck through. Decided once, here, when the module loads — the
+ * page is measured and painted in separate passes, and both have to see the same lines.
+ */
+function jots() {
+  const pool = [...JOTS];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  const lines = pool.slice(0, JOT_COUNT).map((text) => ({ text, done: false }));
+  const done = JOT_DONE[0] + Math.floor(Math.random() * (JOT_DONE[1] - JOT_DONE[0] + 1));
+  const order = lines.map((_, i) => i).sort(() => Math.random() - 0.5);
+  for (const i of order.slice(0, done)) lines[i].done = true;
+  // A little hand in each line: how far it drifts in from the margin and how it leans.
+  for (const line of lines) {
+    line.indent = Math.random();
+    line.slant = Math.random() * 2 - 1;
+  }
+  return lines;
+}
+
 export const SECTIONS = {
   about: {
     // Read off the portrait display's own screen rather than the sidebar — see
@@ -222,7 +269,9 @@ export const SECTIONS = {
     // Which module reads it: the prints are looked at one at a time (`wallFrameFocus.js`).
     propMode: 'frames',
     eyebrow: 'Education',
-    title: 'Education',
+    // The references hang here too: the letter of recommendation is one of the prints
+    // (`wallFrames.js`), read the way the certificate is.
+    title: 'Education & references',
     blocks: [
       {
         kind: 'cards',
@@ -242,13 +291,29 @@ export const SECTIONS = {
   },
 
   blog: {
+    // Read off the iPad's own glass rather than the sidebar — see `screen.js`, whose
+    // `slabFace` is what finds it: the model has no lit panel, so the tablet is read as
+    // the flat slab it is.
+    screen: true,
+    // Handwritten — Caveat, from `public/fonts/`; `screen.js` loads it on first paint.
+    // A script face sets small for its size, so the type is a little larger than the
+    // tablet would otherwise get, and the page is meant to fill the glass.
+    font: 'Caveat',
+    screenScale: 1.2,
+    // Lines closer together than the monitors' pages: a pad is written, not typeset.
+    leading: 0.72,
+    screenInset: 0.012,
+    // The glass has rounded corners; the page is clipped to them (fraction of its width).
+    screenRadius: 0.05,
+    // A drawing app's tool bar along the bottom of the glass — see `drawToolbar()`.
+    toolbar: 'draw',
     eyebrow: 'Writing',
     title: 'Notes on systems',
     blocks: [
-      {
-        kind: 'intro',
-        text: 'Placeholder entries — replace the titles and dates with real posts, or drop this section from `anchors.js` to take the object out of the room.',
-      },
+      // What is jotted on the pad while sitting at the machine: a different handful
+      // each visit, a few of them crossed off. See `jots()` below.
+      { kind: 'jots', items: jots() },
+      { kind: 'heading', text: 'Drafts' },
       {
         kind: 'rows',
         items: [
@@ -256,32 +321,6 @@ export const SECTIONS = {
           { meta: 'Draft', title: 'Holding 10,000 sockets: lessons from live tracking', href: '#' },
           { meta: 'Draft', title: "When RabbitMQ is the right answer — and when it isn't", href: '#' },
         ],
-      },
-    ],
-  },
-
-  testimonials: {
-    eyebrow: 'References',
-    title: 'References',
-    blocks: [
-      { kind: 'intro', text: 'Placeholder quotes — swap in two or three real ones.' },
-      {
-        kind: 'quotes',
-        items: [
-          {
-            text: "Add a colleague's sentence about how you work here — one or two lines is plenty.",
-            attrib: 'Name — role, company',
-          },
-          {
-            text: 'A second quote, ideally about a specific project rather than general praise.',
-            attrib: 'Name — role, company',
-          },
-        ],
-      },
-      {
-        kind: 'note',
-        text: 'References available on request — ',
-        link: { label: PROFILE.email, href: `mailto:${PROFILE.email}` },
       },
     ],
   },

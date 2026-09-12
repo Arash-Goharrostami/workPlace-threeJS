@@ -10,6 +10,7 @@
     "convert": "bash scripts/convert-usdz.sh",
     "strip": "node scripts/strip-glb-image.mjs",
     "shrink": "node scripts/shrink-glb.mjs",
+    "shrink:parts": "node scripts/shrink-parts.mjs",
     "shrink:textures": "node scripts/shrink-textures.mjs",
     "textures": "bash scripts/extract-desk-textures.sh",
     "apple": "bash scripts/import-apple-models.sh",
@@ -21,6 +22,11 @@
     "three": "^0.180.0"
   },
   "devDependencies": {
+    "@gltf-transform/core": "^4.5.0",
+    "@gltf-transform/extensions": "^4.5.0",
+    "@gltf-transform/functions": "^4.5.0",
+    "draco3dgltf": "^1.5.7",
+    "meshoptimizer": "^1.2.0",
     "vite": "^7.1.0"
   },
   "allowScripts": {

@@ -40,5 +40,7 @@ rm -rf "$staging"
 # here rather than as a one-off pass is what stops the next `npm run textures` from
 # quietly putting the heavy versions back.
 node "$root/scripts/shrink-textures.mjs" "$out" 1024 80
+# …and then to WebP, which is what `deskMaterials.js` loads.
+python3 "$root/scripts/textures-to-webp.py" "$out" --halve Metal_PBR_Final_metallicRoughness_rough
 
 echo "Done: $out ($(du -sh "$out" | cut -f1), ${#files[@]} files)"

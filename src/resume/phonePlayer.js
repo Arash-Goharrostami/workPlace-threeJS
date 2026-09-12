@@ -11,30 +11,46 @@
  * and swapping `src` is what a phone does when you skip. Nothing ever autoplays — every
  * path to `play()` starts at a click, which is the only thing browsers will honour.
  *
- * The three tracks are Kevin MacLeod's, under CC BY 4.0 (see the README); they live in
- * `public/audio/` re-encoded at 96 kbps, which is about a third of the download for music
- * coming out of a 7 cm phone.
+ * The three tracks live in `public/audio/` re-encoded at 96 kbps with their tags stripped
+ * — about 40% of what they arrived as, and inaudibly different coming out of a 7 cm phone.
+ * The originals are in `tmp/originals/audio/`; the title and artist on each card are what
+ * the file's own tags said, and the cover is the art those tags carried, pulled out to
+ * `public/audio/covers/` at 256² so it shows before the track itself is fetched. The
+ * `mark` and `art` pair is what the tile shows until it arrives, or if it never does.
+ * `filename` is what the download button saves the track as — the on-card lowercase is
+ * a style, not a name for a file.
+ *
+ * Nothing is fetched until ▶ is tapped (`preload = 'metadata'`), so the first press on a
+ * track is a download. The card shows that: `setLoading` swaps the glyph for a spinner
+ * from the moment the browser starts waiting on data until sound is actually coming out,
+ * so a tap that takes three seconds to answer reads as *loading*, not *ignored*.
  */
 
 const TRACKS = [
   {
-    file: 'audio/almostNew.mp3',
-    title: 'almost new',
-    artist: 'kevin macleod',
+    file: 'audio/noSurprises.mp3',
+    cover: 'audio/covers/noSurprises.jpg',
+    filename: "No Surprises - Juliana Chahayed.mp3",
+    title: 'no surprises',
+    artist: 'juliana chahayed',
     mark: 'moon',
     art: ['#f4ead6', '#b39a6f'],
   },
   {
-    file: 'audio/lobbyTime.mp3',
-    title: 'lobby time',
-    artist: 'kevin macleod',
+    file: 'audio/youreAllIWant.mp3',
+    cover: 'audio/covers/youreAllIWant.jpg',
+    filename: "You're All I Want - Cigarettes After Sex.mp3",
+    title: "you're all i want",
+    artist: 'cigarettes after sex',
     mark: 'disc',
     art: ['#ece7da', '#99a08b'],
   },
   {
-    file: 'audio/coolVibes.mp3',
-    title: 'cool vibes',
-    artist: 'kevin macleod',
+    file: 'audio/iDontKnowYouAnymore.mp3',
+    cover: 'audio/covers/iDontKnowYouAnymore.jpg',
+    filename: "i don't know you anymore - sombr.mp3",
+    title: "i don't know you anymore",
+    artist: 'sombr',
     mark: 'wave',
     art: ['#e2e9e1', '#8dae9d'],
   },
@@ -70,13 +86,23 @@ export function setupPhonePlayer(card) {
     else card.setPlaying(false);
   };
 
+  // The spinner is up whenever playback is wanted and the element is starved: from the
+  // `play()` that starts a fetch, through any mid-track stall, until `playing` — the
+  // one event that means sound is out. A pause or a failed load takes it down too.
+  const starved = () => wanted && (audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA);
+  const relay = () => card.setLoading(starved());
+  for (const type of ['loadstart', 'waiting', 'stalled', 'playing', 'canplay', 'pause', 'error', 'emptied']) {
+    audio.addEventListener(type, relay);
+  }
+
   const start = () => {
     wanted = true;
     // A rejected play is not a failure worth throwing over — a tab that has never been
     // clicked simply stays paused, and the glyph has to say so.
+    card.setLoading(starved());
     audio.play().then(
       () => card.setPlaying(true),
-      () => { wanted = false; card.setPlaying(false); }
+      () => { wanted = false; card.setPlaying(false); card.setLoading(false); }
     );
   };
 
@@ -84,6 +110,7 @@ export function setupPhonePlayer(card) {
     wanted = false;
     audio.pause();
     card.setPlaying(false);
+    card.setLoading(false);
   };
 
   audio.addEventListener('timeupdate', () => card.setProgress(audio.currentTime, audio.duration));
@@ -139,7 +166,8 @@ export function setupPhonePlayer(card) {
       case 'iphone-player-art':
         if (audio.paused) start();
         else pause();
-        return audio.paused ? `Paused — ${track.title}` : playingLine;
+        if (!wanted) return `Paused — ${track.title}`;
+        return starved() ? `Loading — ${track.title}` : playingLine;
 
       case 'iphone-player-next':
         load(index + 1, wanted);
@@ -175,10 +203,18 @@ export function setupPhonePlayer(card) {
       case 'iphone-player-volume-up':
         return setVolume(audio.volume + VOLUME_STEP);
 
-      // The AirPlay button is drawn because the widget has one; there is nothing in a
-      // browser to hand the audio to, so it says as much rather than doing nothing.
-      case 'iphone-player-airplay':
-        return 'AirPlay — no other device in the room';
+      // Where the widget keeps AirPlay: there is no other device in a browser to hand
+      // the audio to, so the button saves the track instead — a download link clicked
+      // for the user, the same way the CV goes out (`sheetPrompt.js`).
+      case 'iphone-player-download': {
+        const link = document.createElement('a');
+        link.href = track.file;
+        link.setAttribute('download', track.filename);
+        document.body.append(link);
+        link.click();
+        link.remove();
+        return `Downloading — ${track.title}`;
+      }
 
       default:
         return playingLine;

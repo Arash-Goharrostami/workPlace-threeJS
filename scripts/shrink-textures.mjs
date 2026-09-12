@@ -2,7 +2,7 @@
 /**
  * Re-encodes a directory of textures in place.
  *
- *     node scripts/shrink-textures.mjs <dir> [maxSize=1024] [quality=80]
+ *     node scripts/shrink-textures.mjs <dir> [maxSize=1024] [quality=80] [--quantize]
  *
  * The counterpart to `shrink-glb.mjs` for the maps that are served as loose files rather
  * than embedded in a model — `public/textures/desk/`, whose two normal maps arrive from
@@ -12,7 +12,12 @@
  * re-encodes rather than downsamples, and why `maxSize` is a ceiling rather than a
  * target.
  *
- * Anything with alpha stays PNG; everything else becomes JPEG. A result that came out no
+ * Anything with alpha stays PNG; everything else becomes JPEG. `--quantize` takes the
+ * PNGs down to a 256-colour palette (alpha kept), which is what a flat app icon is
+ * anyway — the iPhone's icons went about two-thirds smaller with nothing to see. Off by
+ * default: a normal map or a photograph with alpha would band.
+ *
+ * A result that came out no
  * smaller than the file it replaces is discarded, so this is safe to run repeatedly and
  * cannot ratchet quality down over successive runs — which matters, because
  * `extract-desk-textures.sh` calls it every time it refreshes the directory.
@@ -27,7 +32,9 @@ const PYTHON = `
 import sys
 from PIL import Image
 
-src, dst, limit, quality = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
+src, dst, limit, quality, quantize = (
+    sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), sys.argv[5] == '1'
+)
 image = Image.open(src)
 was = image.format
 
@@ -52,6 +59,8 @@ else:
     size = (width, height)
 
 if alpha:
+    if quantize:
+        image = image.convert('RGBA').quantize(256, method=Image.Quantize.FASTOCTREE)
     image.save(dst, 'PNG', optimize=True)
     ext = 'png'
 else:
@@ -61,9 +70,11 @@ else:
 print(f'{width}x{height} {size[0]}x{size[1]} {ext}')
 `;
 
-const [dir, sizeArg = '1024', qualityArg = '80'] = process.argv.slice(2);
+const args = process.argv.slice(2);
+const quantize = args.includes('--quantize');
+const [dir, sizeArg = '1024', qualityArg = '80'] = args.filter((arg) => !arg.startsWith('--'));
 if (!dir) {
-  console.error('Usage: shrink-textures.mjs <dir> [maxSize] [quality]');
+  console.error('Usage: shrink-textures.mjs <dir> [maxSize] [quality] [--quantize]');
   process.exit(1);
 }
 if (!fs.existsSync(dir)) {
@@ -92,7 +103,7 @@ for (const name of fs.readdirSync(dir).sort()) {
   try {
     report = execFileSync(
       'python3',
-      ['-c', PYTHON, file, output, String(maxSize), String(quality)],
+      ['-c', PYTHON, file, output, String(maxSize), String(quality), quantize ? '1' : '0'],
       { encoding: 'utf8' }
     ).trim();
   } catch {

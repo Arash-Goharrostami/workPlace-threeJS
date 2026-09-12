@@ -27,4 +27,7 @@ for name in "${files[@]}"; do
   cp "$src/$name" "$out/$name"
 done
 
+# Served as WebP, which is what `floorMaterial.js` loads; the roughness is grain and
+# goes out at half size.
+python3 "$root/scripts/textures-to-webp.py" "$out" --halve floor-tiles-roughness
 echo "Done: $out ($(du -sh "$out" | cut -f1), ${#files[@]} files)"

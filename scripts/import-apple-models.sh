@@ -59,10 +59,19 @@ done
 # the wallpaper and the app icons — so those travel with it.
 iphone="$root/public/textures/iphone"
 mkdir -p "$iphone"
-cp "$assets/PhoneWallpaper.jpg" "$iphone/"
+# The wallpaper arrives as a 430 KB JPEG and is served as a 19 KB WebP; the icons are
+# quantised to a palette by the shrink pass, which is what keeps them at a few KB each.
+python3 -c "
+from PIL import Image
+Image.open('$assets/PhoneWallpaper.jpg').convert('RGB').save('$iphone/PhoneWallpaper.webp', 'WEBP', quality=70, method=6)
+"
 cp "$assets"/icons/*.png "$iphone/"
+node "$root/scripts/shrink-textures.mjs" "$iphone" 1024 60 --quantize
 echo "      public/textures/iphone/ ($(ls "$iphone" | wc -l | tr -d ' ') files)"
 
-# Both GLBs are Draco-compressed, so the decoder has to be served alongside them.
-cp "$decoder"/* "$root/public/draco/"
+# Both GLBs are Draco-compressed, so the decoder has to be served alongside them — the
+# WASM build only. `DRACOLoader` takes the JS fallback only where WebAssembly is missing,
+# and the encoder is for `npm run shrink`, not the browser; together they were 1.4 MB of
+# `dist/` nothing ever fetched.
+cp "$decoder/draco_decoder.wasm" "$decoder/draco_wasm_wrapper.js" "$root/public/draco/"
 echo "      public/draco/ ($(ls "$root/public/draco" | wc -l | tr -d ' ') files)"

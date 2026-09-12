@@ -10,7 +10,7 @@ import * as THREE from 'three';
  * the wall meshes carry no UVs at all, so the mapping is projected here.
  */
 
-const TEXTURE_FILE = 'textures/wall/Concrete_baseColor.jpg';
+const TEXTURE_FILE = 'textures/wall/Concrete_baseColor.webp';
 
 /** Children of the `walls` group that are not walls. */
 const NON_WALLS = new Set(['floor', 'ceiling']);

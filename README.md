@@ -123,17 +123,20 @@ the old chair's container: that container is a nested Sketchfab import carrying 
 
 The iPhone's screen carries a working Now Playing card — the iOS media widget, built in
 code alongside the rest of the phone. Open the Contact section (the phone) and its
-controls are live: play/pause, skip, a seekable progress bar and a volume slider. Nothing
+controls are live: play/pause, skip, a seekable progress bar, a volume slider and a
+download button that saves the current track. Nothing
 ever autoplays; every path to `play()` starts at a click, which is the only thing a
 browser will honour.
 
-The three tracks in `public/audio/` are by **Kevin MacLeod** (incompetech.com) — *Almost
-New*, *Lobby Time* and *Cool Vibes* — licensed under
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). They are re-encoded at 96 kbps,
-which is about a third of the download and inaudibly different coming out of a 7 cm phone.
-Replacing them is a matter of dropping a file in `public/audio/` and editing the `TRACKS`
-table at the top of `src/resume/phonePlayer.js`; the attribution above has to move with
-them.
+The three tracks in `public/audio/` — *No Surprises* (Juliana Chahayed's cover), *You're
+All I Want* (Cigarettes After Sex) and *i don't know you anymore* (sombr) — are re-encoded
+at 96 kbps with their tags stripped (the cover art from those tags is in
+`public/audio/covers/`, 256² each), which is about 40% of the download and inaudibly
+different coming out of a 7 cm phone; the originals are kept in `tmp/originals/audio/`.
+Nothing is fetched until ▶ is tapped, and the card shows a spinner in place of the glyph
+while a track buffers. Replacing them is a matter of dropping a camelCase file in
+`public/audio/` and editing the `TRACKS` table at the top of `src/resume/phonePlayer.js`.
+
 
 ## Layout
 

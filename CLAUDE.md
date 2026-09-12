@@ -56,6 +56,17 @@ to be passed through npm's `--` (`npm run shrink -- desk --no-textures`) or npm 
 Watch what `prune` takes with them — a UV set nothing references *in the file* can still
 be wanted at runtime, which is why prune runs with `--keep-attributes`.
 
+`npm run shrink:parts -- <model> --drop mat,mat --keep mat,mat --ratio r [size] [quality]
+[--coarse]` is for a model whose triangles are not worth the same: parts are told apart
+by **material name**, `--drop` deletes them, `--keep` leaves them at full detail and
+everything else is simplified at the ratio; the result then goes through `shrink-glb`
+for the textures and the finish. `guitarOnStand.glb` is the case — a whole-model
+simplify took the edge off the soundboard, the one face the room looks at, while
+spending triangles on an interior nobody sees. Dropping the three interior materials
+and keeping the soundboard whole gave 390 KB against 549 KB, with the front untouched.
+It always starts from `tmp/originals/<model>.orig.glb`, so re-running with different
+lists does not compound.
+
 `--only prefix,prefix` keeps the meshes on matching nodes and strips the rest, for a model
 where most of the file is never rendered. `powerCable.glb` is the case: 95% of its
 triangles drew a cable that `buildCable()` draws procedurally, and only its plug and socket

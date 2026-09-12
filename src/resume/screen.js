@@ -66,6 +66,45 @@ export const LINE = '#232833';
 
 export const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif';
 
+/**
+ * The face the renderers below set type in. `FONT` unless a section names its own —
+ * the Writing section is set in a handwriting face — in which case `flow()` swaps it in
+ * for that page and back out after, so a window drawing blocks through `blocks()`
+ * (`notesApp.js`) is not left with the last page's face.
+ */
+let face = FONT;
+
+/**
+ * Multiplier on the vertical gaps, likewise set per page by `flow()`. A handwritten
+ * pad wants its lines closer than the monitors' pages do; `leading` in `content.js`.
+ */
+let leading = 1;
+
+/**
+ * Faces that live in `public/fonts/`, by the name a section's `font` uses. Loaded on
+ * first use through the FontFace API rather than a stylesheet, so nothing on the page
+ * has to mention them; `paint()` repaints the screen once the file is in, since a
+ * canvas cannot wait for a font the way the DOM does.
+ */
+const FACES = {
+  Caveat: 'fonts/caveat.woff2',
+};
+const loaded = new Map();
+
+function loadFace(name) {
+  if (!FACES[name]) return Promise.resolve();
+  if (!loaded.has(name)) {
+    const font = new FontFace(name, `url(${FACES[name]})`);
+    loaded.set(
+      name,
+      font.load().then((f) => document.fonts.add(f)).catch((error) => {
+        console.warn(`[resume] font "${name}" failed to load:`, error);
+      })
+    );
+  }
+  return loaded.get(name);
+}
+
 /** Type sizes and spacing, as fractions of the canvas width — so the layout scales. */
 export const SCALE = {
   pad: 0.058,
@@ -121,7 +160,7 @@ export function panelOf(prop) {
  */
 export function screenFace(prop) {
   const panel = panelOf(prop);
-  if (!panel) return null;
+  if (!panel) return slabFace(prop);
 
   panel.updateMatrixWorld(true);
   const facets = triangles(panel);
@@ -176,6 +215,77 @@ export function screenFace(prop) {
     centre,
     width: span.right.size,
     height: span.up.size,
+  };
+}
+
+/**
+ * The face of a prop that has no lit panel to find — the iPad, whose model is one unlit
+ * mesh with nothing that says "screen" about it. Read as the slab it is: the thinnest
+ * axis of its biggest mesh is out of the glass, and the box face at the top of that
+ * axis is the glass. Cruder than the facet read above, but a tablet lying on a desk *is*
+ * its bounding box, near enough.
+ *
+ * The page is portrait: up the picture is the slab's long axis, pointed away from the
+ * middle of the room — which for a tablet on the desk is away from whoever stands at
+ * the desk reading it, so the page is upright from their side.
+ */
+function slabFace(prop) {
+  let panel = null;
+  let bestArea = 0;
+  prop.traverse((node) => {
+    if (!node.isMesh) return;
+    node.geometry.computeBoundingBox();
+    const size = node.geometry.boundingBox.getSize(new THREE.Vector3());
+    const [a, b] = size.toArray().sort((x, y) => y - x);
+    if (a * b > bestArea) {
+      bestArea = a * b;
+      panel = node;
+    }
+  });
+  if (!panel) return null;
+
+  panel.updateMatrixWorld(true);
+  const box = panel.geometry.boundingBox;
+  const size = box.getSize(new THREE.Vector3());
+  const axes = ['x', 'y', 'z'];
+  const thin = axes.reduce((a, b) => (size[a] < size[b] ? a : b));
+  const flat = axes.filter((axis) => axis !== thin);
+
+  // A local axis carried into the room, without the prop's scale.
+  const world = (axis) => {
+    const v = new THREE.Vector3();
+    v[axis] = 1;
+    return v.transformDirection(panel.matrixWorld);
+  };
+
+  const normal = world(thin);
+  const top = normal.y >= 0;
+  if (!top) normal.negate();
+
+  const seat = new THREE.Vector3().setFromMatrixPosition(panel.matrixWorld);
+  const away = new THREE.Vector3(seat.x, 0, seat.z);
+  if (away.lengthSq() < 1e-6) away.set(0, 0, -1);
+  away.normalize();
+  // Portrait: the long axis is up the page, pointed away from the reader.
+  const upAxis = flat.reduce((a, b) => (size[a] >= size[b] ? a : b));
+  const rightAxis = flat.find((axis) => axis !== upAxis);
+  const up = world(upAxis);
+  if (up.dot(away) < 0) up.negate();
+  const right = new THREE.Vector3().crossVectors(up, normal).normalize();
+
+  const local = box.getCenter(new THREE.Vector3());
+  local[thin] = top ? box.max[thin] : box.min[thin];
+  const centre = panel.localToWorld(local);
+
+  const scale = panel.getWorldScale(new THREE.Vector3());
+  return {
+    panel,
+    normal,
+    right,
+    up,
+    centre,
+    width: size[rightAxis] * scale[rightAxis],
+    height: size[upAxis] * scale[upAxis],
   };
 }
 
@@ -247,6 +357,8 @@ function extent(points, axis) {
 export function setupScreens() {
   /** One plane per prop, with the section on it, kept for as long as the room is up. */
   const painted = new Map();
+  /** Faces that have landed, so a repaint does not queue another. */
+  const ready = new Set();
 
   const screens = {
     /**
@@ -265,8 +377,11 @@ export function setupScreens() {
       if (old) dispose(old.plane);
 
       const { panel, normal, right, up } = face;
-      const width = face.width * (1 - BEZEL * 2);
-      const height = face.height * (1 - BEZEL * 2);
+      // A section can widen the inset: a tablet's bezel is a good deal broader than a
+      // monitor's, and the box read in `slabFace` takes in the rim as well as the glass.
+      const inset = section.screenInset ?? BEZEL;
+      const width = face.width * (1 - inset * 2);
+      const height = face.height * (1 - inset * 2);
 
       // Laid out full-length once; what the plane shows is a window onto it.
       const view = document.createElement('canvas');
@@ -284,9 +399,24 @@ export function setupScreens() {
       if (section.app === 'notes') app = createNotesApp(section, view);
       else if (section.app === 'textEdit') app = createTextEditApp(section, view);
       const full = app ? null : draw(section, view.width);
+      // Drawn now in whatever face is in; drawn again once the section's own has
+      // arrived. Only for a page — the windows set their own type. Not gated on
+      // `document.fonts.check()`: that answers true for a family the page has never
+      // heard of, which is exactly the case before the first load.
+      if (!app && section.font && !ready.has(section.font)) {
+        loadFace(section.font).then(() => {
+          ready.add(section.font);
+          if (painted.get(prop)?.plane === plane) screens.paint(prop, section);
+        });
+      }
       const page = app
         ? { view, texture, app }
-        : { view, full, texture, scroll: 0, span: Math.max(0, full.height - view.height) };
+        : {
+            view, full, texture, scroll: 0,
+            span: Math.max(0, full.height - view.height),
+            radius: section.screenRadius ?? 0,
+            toolbar: section.toolbar ?? null,
+          };
       if (!app) blit(page);
       // The window repaints itself on the minute, for the menu bar's clock, and this is
       // the half of that it cannot do: the same pairing `scroll()` and `rewind()` below
@@ -301,7 +431,12 @@ export function setupScreens() {
 
       const plane = new THREE.Mesh(
         new THREE.PlaneGeometry(width, height),
-        new THREE.MeshBasicMaterial({ map: texture, toneMapped: false })
+        new THREE.MeshBasicMaterial({
+          map: texture,
+          toneMapped: false,
+          // See `blit()`: rounded corners are cleared, not painted, and show the glass.
+          transparent: Boolean(section.screenRadius),
+        })
       );
       plane.name = `${prop.name}_section`;
       // Inert, except for a window: its rows are clicked on the monitor itself, so this
@@ -406,9 +541,18 @@ export function setupScreens() {
 
 /** Copies the visible window of the laid-out page onto the canvas the plane shows. */
 function blit(page) {
-  const { view, full, scroll, span } = page;
+  const { view, full, scroll, span, radius } = page;
   const ctx = view.getContext('2d');
 
+  // A screen with rounded corners — the tablet's — is clipped to them, and the corners
+  // left clear so the glass shows through; the plane's material is transparent for it.
+  ctx.save();
+  if (radius) {
+    ctx.clearRect(0, 0, view.width, view.height);
+    ctx.beginPath();
+    ctx.roundRect(0, 0, view.width, view.height, radius * view.width);
+    ctx.clip();
+  }
   ctx.fillStyle = GROUND;
   ctx.fillRect(0, 0, view.width, view.height);
   ctx.drawImage(full, 0, scroll, view.width, view.height, 0, 0, view.width, view.height);
@@ -427,8 +571,149 @@ function blit(page) {
     ctx.fillRect(x, y, w, height);
     ctx.globalAlpha = 1;
   }
+  if (page.toolbar === 'draw') drawToolbar(ctx, view.width, view.height);
+  ctx.restore();
 
   page.texture.needsUpdate = true;
+}
+
+/**
+ * The tool bar of a drawing app, along the bottom of the glass: a row of round buttons — undo, redo, erase, draw (lit), tools, fill, pen size, colour and
+ * layers — each with its glyph and a small label. Painted over the page in `blit()`
+ * rather than into it, so it holds still while the page scrolls under it.
+ */
+const TOOLBAR_H = 0.11;
+const TOOLS = [
+  { label: 'Undo', glyph: 'undo' },
+  { label: 'Redo', glyph: 'redo' },
+  { label: 'Erase', glyph: 'erase' },
+  { label: 'Draw', glyph: 'draw', lit: true },
+  { label: 'Tools', glyph: 'tools' },
+  { label: 'Fill', glyph: 'fill' },
+  { label: '0.8 mm', glyph: 'size' },
+  { label: 'Color', glyph: 'color' },
+  { label: 'Layers', glyph: 'layers' },
+];
+
+function drawToolbar(ctx, W, H) {
+  const h = W * TOOLBAR_H;
+  const top = H - h;
+
+  // No band behind the buttons: they sit straight on the page.
+  ctx.save();
+
+  const n = TOOLS.length;
+  const d = h * 0.6;
+  const gap = Math.min(d * 0.35, (W - n * d) / (n + 1));
+  const rowW = n * d + (n - 1) * gap;
+  let x = (W - rowW) / 2;
+  const cy = top + h * 0.4;
+  const labelSize = h * 0.11;
+
+  for (const tool of TOOLS) {
+    const cx = x + d / 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, d / 2, 0, Math.PI * 2);
+    ctx.fillStyle = tool.lit ? '#2f7cf6' : '#2a2d34';
+    ctx.fill();
+
+    ctx.strokeStyle = '#f2f4f8';
+    ctx.fillStyle = '#f2f4f8';
+    ctx.lineWidth = d * 0.06;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    glyph(ctx, tool.glyph, cx, cy, d * 0.24);
+
+    ctx.font = `500 ${labelSize}px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = tool.lit ? '#cfe1ff' : INK_DIM;
+    ctx.fillText(tool.label, cx, cy + d / 2 + labelSize * 1.1);
+    ctx.textAlign = 'left';
+
+    x += d + gap;
+  }
+  ctx.restore();
+}
+
+/** One tool bar icon, drawn with strokes inside a box `r` either side of (cx, cy). */
+function glyph(ctx, kind, cx, cy, r) {
+  ctx.beginPath();
+  switch (kind) {
+    case 'undo':
+    case 'redo': {
+      // One drawing, mirrored for redo.
+      ctx.save();
+      ctx.translate(cx, cy);
+      if (kind === 'redo') ctx.scale(-1, 1);
+      ctx.arc(0, r * 0.15, r * 0.75, Math.PI * 1.1, Math.PI * 2.35);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.75, -r * 0.7);
+      ctx.lineTo(-r * 0.75, -r * 0.05);
+      ctx.lineTo(-r * 0.1, -r * 0.05);
+      ctx.stroke();
+      ctx.restore();
+      break;
+    }
+    case 'erase':
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(-Math.PI / 4);
+      ctx.roundRect(-r * 0.9, -r * 0.45, r * 1.8, r * 0.9, r * 0.15);
+      ctx.moveTo(-r * 0.2, -r * 0.45);
+      ctx.lineTo(-r * 0.2, r * 0.45);
+      ctx.stroke();
+      ctx.restore();
+      break;
+    case 'draw':
+      ctx.moveTo(cx - r * 0.6, cy + r * 0.7);
+      ctx.lineTo(cx + r * 0.6, cy - r * 0.7);
+      ctx.stroke();
+      break;
+    case 'tools':
+      ctx.roundRect(cx - r * 0.85, cy - r * 0.35, r * 1.2, r * 1.2, r * 0.15);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx + r * 0.35, cy - r * 0.3, r * 0.5, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+    case 'fill':
+      ctx.moveTo(cx - r * 0.7, cy + r * 0.1);
+      ctx.lineTo(cx - r * 0.1, cy - r * 0.6);
+      ctx.lineTo(cx + r * 0.5, cy);
+      ctx.lineTo(cx - r * 0.1, cy + r * 0.7);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx + r * 0.75, cy + r * 0.55, r * 0.18, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case 'size':
+      for (const [dy, w] of [[-0.45, 0.04], [0, 0.08], [0.45, 0.14]]) {
+        ctx.beginPath();
+        ctx.lineWidth = r * w * 2;
+        ctx.moveTo(cx - r * 0.8, cy + r * dy);
+        ctx.lineTo(cx + r * 0.8, cy + r * dy);
+        ctx.stroke();
+      }
+      break;
+    case 'color':
+      ctx.arc(cx, cy, r * 0.75, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      break;
+    case 'layers':
+      for (const dy of [-0.35, 0, 0.35]) {
+        ctx.beginPath();
+        ctx.moveTo(cx - r * 0.85, cy + r * dy);
+        ctx.lineTo(cx, cy + r * (dy - 0.45));
+        ctx.lineTo(cx + r * 0.85, cy + r * dy);
+        ctx.lineTo(cx, cy + r * (dy + 0.45));
+        ctx.closePath();
+        ctx.stroke();
+      }
+      break;
+  }
 }
 
 /** Frees one painted plane and everything it owns. */
@@ -478,21 +763,30 @@ function flow(ctx, section, W, paint = false) {
     W * (section.screenScale ?? 1) * (NARROW.matches ? section.narrowType ?? NARROW_TYPE : 1);
   const pad = u * SCALE.pad;
 
-  let y = pad * 1.1;
+  face = section.font ? `"${section.font}", ${FONT}` : FONT;
+  leading = section.leading ?? 1;
+  const end = flowBody(ctx, section, W, u, pad, paint);
+  face = FONT;
+  leading = 1;
+  return end;
+}
 
-  ctx.font = `500 ${u * SCALE.eyebrow}px ${FONT}`;
+function flowBody(ctx, section, W, u, pad, paint) {
+  let y = pad * 1.1 * leading;
+
+  ctx.font = `500 ${u * SCALE.eyebrow}px ${face}`;
   if (paint) {
     ctx.fillStyle = ACCENT;
     ctx.fillText(spaced(section.eyebrow.toUpperCase()), pad, y);
   }
-  y += u * SCALE.eyebrow * 2.2;
+  y += u * SCALE.eyebrow * 2.2 * leading;
 
-  ctx.font = `600 ${u * SCALE.title}px ${FONT}`;
+  ctx.font = `600 ${u * SCALE.title}px ${face}`;
   if (paint) {
     ctx.fillStyle = INK;
     ctx.fillText(section.title, pad, y);
   }
-  y += u * SCALE.title * 1.55;
+  y += u * SCALE.title * 1.55 * leading;
 
   y = blocks(ctx, section.blocks, pad, y, W, u, paint);
 
@@ -518,6 +812,8 @@ export function blocks(ctx, list, pad, top, W, u, paint) {
     else if (block.kind === 'timeline') y = timeline(ctx, block.items, pad, y, W, u, paint);
     else if (block.kind === 'cards') y = cards(ctx, block.items, pad, y, W, u, paint);
     else if (block.kind === 'footnote') y = body(ctx, [block.text], pad, y, W, u, paint);
+    else if (block.kind === 'rows') y = rows(ctx, block.items, pad, y, W, u, paint);
+    else if (block.kind === 'jots') y = jots(ctx, block.items, pad, y, W, u, paint);
     // Anything else is skipped, the way `panels.js` skips block kinds it lacks.
   }
   return y;
@@ -530,7 +826,7 @@ export function blocks(ctx, list, pad, top, W, u, paint) {
 function body(ctx, list, pad, top, W, u, paint, lead = false) {
   const size = u * (lead ? SCALE.lead_size : SCALE.text);
   const line = size * SCALE.lead;
-  ctx.font = `${lead ? 500 : 400} ${size}px ${FONT}`;
+  ctx.font = `${lead ? 500 : 400} ${size}px ${face}`;
 
   let y = top;
   for (const paragraph of list) {
@@ -544,6 +840,95 @@ function body(ctx, list, pad, top, W, u, paint, lead = false) {
     y += line * 0.6;
   }
   return y + line * (lead ? 0.5 : 0.7);
+}
+
+/**
+ * Lines jotted by hand: each set a little off the margin and leaning its own way, and
+ * the done ones crossed out with a stroke that wobbles the way a pen does. `indent` and
+ * `slant` come with the line from `content.js`, so measure and paint agree.
+ */
+function jots(ctx, items, pad, top, W, u, paint) {
+  const size = u * SCALE.lead_size * 1.2;
+  const line = size * 1.22 * leading;
+  ctx.font = `500 ${size}px ${face}`;
+
+  let y = top;
+  for (const item of items) {
+    const x = pad + item.indent * size * 0.9;
+    const lean = item.slant * 0.012;
+    if (paint) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(lean);
+      ctx.fillStyle = item.done ? INK_FAINT : INK;
+      ctx.fillText(item.text, 0, 0);
+      if (item.done) strike(ctx, ctx.measureText(item.text).width, size, item.slant);
+      ctx.restore();
+    }
+    y += line;
+  }
+  return y + line * 0.3;
+}
+
+/**
+ * A pen stroke through a line of text: starts a little before it, ends a little past,
+ * and drifts up and down along the way. `seed` keeps the wobble the same between
+ * frames — the page is painted more than once and the stroke must not crawl.
+ */
+function strike(ctx, width, size, seed) {
+  const mid = size * 0.58;
+  const from = -size * 0.15;
+  const to = width + size * 0.2;
+  const steps = 6;
+  ctx.strokeStyle = INK_DIM;
+  ctx.lineWidth = Math.max(1.5, size * 0.055);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(from, mid + size * 0.04 * seed);
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const wobble = Math.sin(t * Math.PI * 2.3 + seed * 3) * size * 0.05;
+    ctx.lineTo(from + (to - from) * t, mid + wobble + size * 0.04 * seed * (1 - t));
+  }
+  ctx.stroke();
+}
+
+/**
+ * A list of posts, one per hairline rule: the small line above — a date, or "Draft" —
+ * and the title under it. The screen's answer to `rows` in `panels.js`.
+ */
+function rows(ctx, items, pad, top, W, u, paint) {
+  const meta = u * SCALE.label;
+  const title = u * SCALE.role;
+  const line = title * 1.15 * leading;
+  const width = W - pad * 2;
+
+  let y = top;
+  for (const item of items) {
+    if (paint) {
+      ctx.fillStyle = LINE;
+      ctx.fillRect(pad, y, width, Math.max(1, u * 0.0015));
+    }
+    y += meta * 0.8 * leading;
+
+    ctx.font = `500 ${meta}px ${face}`;
+    if (paint) {
+      ctx.fillStyle = ACCENT;
+      ctx.fillText(spaced(item.meta.toUpperCase()), pad, y);
+    }
+    y += meta * 1.4 * leading;
+
+    ctx.font = `500 ${title}px ${face}`;
+    for (const text of wrap(ctx, item.title, width)) {
+      if (paint) {
+        ctx.fillStyle = INK;
+        ctx.fillText(text, pad, y);
+      }
+      y += line;
+    }
+    y += meta * 0.8 * leading;
+  }
+  return y + meta;
 }
 
 /** The two-by-two grid of figures, drawn as cells on a hairline grid. */
@@ -562,11 +947,11 @@ function stats(ctx, cells, pad, top, W, u, paint) {
     ctx.lineWidth = Math.max(1, u * 0.0016);
     ctx.strokeRect(x, y, width, height);
 
-    ctx.font = `500 ${u * SCALE.label}px ${FONT}`;
+    ctx.font = `500 ${u * SCALE.label}px ${face}`;
     ctx.fillStyle = INK_FAINT;
     ctx.fillText(spaced(cells[i].label.toUpperCase()), x + pad * 0.7, y + height * 0.26);
 
-    ctx.font = `400 ${u * SCALE.value}px ${FONT}`;
+    ctx.font = `400 ${u * SCALE.value}px ${face}`;
     ctx.fillStyle = cells[i].accent ? ACCENT : INK;
     ctx.fillText(cells[i].value, x + pad * 0.7, y + height * 0.55);
   }
@@ -583,7 +968,7 @@ function stats(ctx, cells, pad, top, W, u, paint) {
 function skills(ctx, groups, pad, top, W, u, paint) {
   let y = top;
   for (const group of groups) {
-    ctx.font = `500 ${u * SCALE.group}px ${FONT}`;
+    ctx.font = `500 ${u * SCALE.group}px ${face}`;
     if (paint) {
       ctx.fillStyle = INK_FAINT;
       ctx.fillText(spaced(group.title.toUpperCase()), pad, y);
@@ -605,7 +990,7 @@ function chips(ctx, tags, left, top, right, u, paint) {
   const gap = size * 0.5;
   const inset = size * 0.85;
 
-  ctx.font = `400 ${size}px ${FONT}`;
+  ctx.font = `400 ${size}px ${face}`;
   let x = left;
   let y = top;
   for (const tag of tags) {
@@ -635,12 +1020,12 @@ function chips(ctx, tags, left, top, right, u, paint) {
 
 /** A second title partway down a page — where one section is really two. */
 function heading(ctx, text, pad, top, u, paint) {
-  ctx.font = `600 ${u * SCALE.heading}px ${FONT}`;
+  ctx.font = `600 ${u * SCALE.heading}px ${face}`;
   if (paint) {
     ctx.fillStyle = INK;
     ctx.fillText(text, pad, top);
   }
-  return top + u * SCALE.heading * 1.7;
+  return top + u * SCALE.heading * 1.7 * leading;
 }
 
 /**
@@ -658,14 +1043,14 @@ function timeline(ctx, items, pad, top, W, u, paint) {
   for (const item of items) {
     const from = y;
 
-    ctx.font = `500 ${u * SCALE.label}px ${FONT}`;
+    ctx.font = `500 ${u * SCALE.label}px ${face}`;
     if (paint) {
       ctx.fillStyle = ACCENT;
       ctx.fillText(spaced(item.date.toUpperCase()), left, y);
     }
     y += u * SCALE.label * 2.4;
 
-    ctx.font = `600 ${u * SCALE.role}px ${FONT}`;
+    ctx.font = `600 ${u * SCALE.role}px ${face}`;
     if (paint) {
       ctx.fillStyle = INK;
       ctx.fillText(item.role, left, y);
@@ -673,7 +1058,7 @@ function timeline(ctx, items, pad, top, W, u, paint) {
     y += u * SCALE.role * 1.5;
 
     if (item.org) {
-      ctx.font = `400 ${u * SCALE.text}px ${FONT}`;
+      ctx.font = `400 ${u * SCALE.text}px ${face}`;
       if (paint) {
         ctx.fillStyle = INK_DIM;
         ctx.fillText(item.org, left, y);
@@ -686,7 +1071,7 @@ function timeline(ctx, items, pad, top, W, u, paint) {
     if (item.desc) {
       const size = u * SCALE.text;
       const line = size * SCALE.lead;
-      ctx.font = `400 ${size}px ${FONT}`;
+      ctx.font = `400 ${size}px ${face}`;
       const lines = wrap(ctx, item.desc, width);
       if (paint) {
         ctx.fillStyle = INK_FAINT;
@@ -714,7 +1099,7 @@ function bullets(ctx, points, left, top, width, u, paint) {
   const size = u * SCALE.text;
   const line = size * SCALE.lead;
   const inset = size * 1.1;
-  ctx.font = `400 ${size}px ${FONT}`;
+  ctx.font = `400 ${size}px ${face}`;
 
   let y = top;
   for (const point of points) {
@@ -772,7 +1157,7 @@ function card(ctx, item, left, top, width, u, paint) {
   let y = top;
 
   if (item.meta) {
-    ctx.font = `500 ${u * SCALE.label}px ${FONT}`;
+    ctx.font = `500 ${u * SCALE.label}px ${face}`;
     if (paint) {
       ctx.fillStyle = ACCENT;
       ctx.fillText(spaced(item.meta.toUpperCase()), left, y);
@@ -780,7 +1165,7 @@ function card(ctx, item, left, top, width, u, paint) {
     y += u * SCALE.label * 2.2;
   }
 
-  ctx.font = `600 ${u * SCALE.role}px ${FONT}`;
+  ctx.font = `600 ${u * SCALE.role}px ${face}`;
   if (paint) {
     ctx.fillStyle = INK;
     ctx.fillText(item.title, left, y);
@@ -792,7 +1177,7 @@ function card(ctx, item, left, top, width, u, paint) {
   if (item.desc) {
     const size = u * SCALE.text;
     const line = size * SCALE.lead;
-    ctx.font = `400 ${size}px ${FONT}`;
+    ctx.font = `400 ${size}px ${face}`;
     const lines = wrap(ctx, item.desc, width);
     if (paint) {
       ctx.fillStyle = INK_DIM;

@@ -31,12 +31,17 @@ const FRAME_BODIES = new Set(['Gold_14k', 'material']);
 
 /**
  * What the HUD says while a print is being read, by material name. `_3010_2` is the
- * frame `wallFrames.js` reprints with the LPIC-3 certificate; the rest are still the
+ * frame `wallFrames.js` reprints with the LPIC-3 certificate and `recommendation` the
+ * letter it hangs in the bottom-right frame, `degree` the B.Sc. in the top-middle one;
+ * the rest are still the
  * pack's own art, and fall back to the section's own line until they carry a
  * certificate of their own.
  */
 const CAPTIONS = {
   _3010_2: 'LPIC-3 — Linux Professional Institute',
+  recommendation: 'Letter of recommendation — Pejvak data khazar',
+  degree: 'B.Sc. Computer Engineering — Islamic Azad University',
+  certificates: 'W3Schools — JavaScript & TypeScript certifications',
 };
 
 /** How thin a mesh has to be, against its own width, to count as a picture plane. */

@@ -171,7 +171,7 @@ export function buildIphone15Pro() {
   // The wallpaper. An extruded shape's UVs are its own coordinates in meters,
   // so the texture has to be scaled down to the panel's size and re-centred to
   // land on it once, right way up, instead of tiling.
-  const wallpaper = new THREE.TextureLoader().load(TEXTURE_DIR + 'PhoneWallpaper.jpg');
+  const wallpaper = new THREE.TextureLoader().load(TEXTURE_DIR + 'PhoneWallpaper.webp');
   wallpaper.colorSpace = THREE.SRGBColorSpace;
   wallpaper.wrapS = THREE.ClampToEdgeWrapping;
   wallpaper.wrapT = THREE.ClampToEdgeWrapping;

@@ -19,6 +19,7 @@ import { addPrinter } from './printer.js';
 import { addPaperTablet } from './paperTablet.js';
 import { addFilamentSpools } from './filamentSpools.js';
 import { addPrinterCable } from './printerCable.js';
+import { addChargerCables } from './chargerCables.js';
 import { addDeskApple } from './deskApple.js';
 import { addBlind } from './blind.js';
 import { addGuitar } from './guitar.js';
@@ -158,6 +159,12 @@ export function loadModel({ scene, camera, controls, environment, ui }) {
           // goes in after the machine is seated.
           await addPrinterCable(model).catch((error) => {
             console.warn('[printer cable] failed to load:', error);
+          });
+
+          // Two spare leads left lying on the desk in front of the printer; authored
+          // in world space, so they need nothing but somewhere to hang.
+          await addChargerCables(model).catch((error) => {
+            console.warn('[charger cables] failed to load:', error);
           });
           await addSideDisplay(model).catch((error) => {
             console.warn('[side display] failed to load:', error);

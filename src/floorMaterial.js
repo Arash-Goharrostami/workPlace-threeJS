@@ -60,9 +60,9 @@ export function applyFloorMaterial(model) {
 function makeTileMaterial() {
   const material = new THREE.MeshStandardMaterial({
     name: 'room_floor_tiles',
-    map: texture('floor-tiles-color.jpg', { srgb: true }),
-    roughnessMap: texture('floor-tiles-roughness.jpg'),
-    normalMap: texture('floor-tiles-normal.jpg'),
+    map: texture('floor-tiles-color.webp', { srgb: true }),
+    roughnessMap: texture('floor-tiles-roughness.webp'),
+    normalMap: texture('floor-tiles-normal.webp'),
     roughness: 1,
     metalness: 0,
   });

@@ -71,9 +71,11 @@ const ANCHORS = {
     prop: 'iPad_Pro',
     label: 'Writing',
     view: 'Detail — iPad Pro',
-    distance: 3.2,
-    // Nearly flat on the desk, so it is read from above rather than edge-on.
-    dir: [0.35, 1, 0.35],
+    // Read off the tablet's own glass (see `slabFace` in `screen.js`): the posts are
+    // painted on it, so the glass is what fills the viewport, not the desk around it.
+    // No `dir`: a flat screen's is derived — over the glass, leaning toward the reader.
+    fit: 'screen',
+    distance: 1.15,
     lift: 0,
   },
   contact: {
@@ -104,19 +106,12 @@ const ANCHORS = {
     dir: [0.62, 0.16, 1],
     lift: 0,
   },
-  testimonials: {
-    prop: 'AirPods_Max',
-    label: 'References',
-    view: 'Detail — AirPods Max',
-    distance: 3.6,
-    lift: 0.5,
-  },
   education: {
     // The composition on the back wall, which carries the LPIC-3 print (see
     // `wallFrames.js`) — the certificates are the section, so the frames read for it in
     // a way the watch on the desk never did.
     prop: 'Wall_frames',
-    label: 'Education',
+    label: 'Education & References',
     view: 'Detail — wall frames',
     // Framed as the flat rectangle it is, so the composition fills the viewport — and
     // fits on width by itself on a phone, since the fit divides by the camera's aspect.
@@ -189,26 +184,18 @@ function findProp(model, name) {
  * `wallFrameFocus.js`), and those have to be fitted by the same maths as the anchors
  * in this table rather than by a second copy of it that drifts.
  */
+/**
+ * How far a flat screen's camera leans off straight-down, toward the reader — in units
+ * of the screen's own normal. Enough to fix which way is up; not so much that the page
+ * reads as a trapezoid.
+ */
+const FLAT_LEAN = 0.25;
+
 export function frameAnchor(object, spec, roomCenter, camera) {
   const box = new THREE.Box3().setFromObject(object);
   const center = box.getCenter(new THREE.Vector3());
   const size = box.getSize(new THREE.Vector3());
   const radius = Math.max(size.length() / 2, 1e-3);
-
-  // Inward from the prop toward the middle of the room: the only side of a prop
-  // standing against a wall that the camera can actually get to. Taken the other way
-  // round it put the camera through the back wall for everything on the desk, which is
-  // most of the room — the section opened onto the outside face of the concrete.
-  const dir = spec.dir
-    ? new THREE.Vector3(...spec.dir).normalize()
-    : new THREE.Vector3(roomCenter.x - center.x, 0, roomCenter.z - center.z);
-  // A prop sitting dead centre gives a zero-length vector; fall back to the room's
-  // default three-quarter view rather than dividing by zero.
-  if (dir.lengthSq() < 1e-6) dir.set(1, 0.55, 1);
-  dir.normalize();
-
-  const fov = THREE.MathUtils.degToRad(camera.fov);
-  const aspect = Number.isFinite(camera.aspect) && camera.aspect > 0 ? camera.aspect : 1;
 
   // A prop is framed by its bounding sphere, which is right for something looked *at*.
   // A screen is read, so it is framed as the flat rectangle it is: fitted to the
@@ -226,6 +213,28 @@ export function frameAnchor(object, spec, roomCenter, camera) {
         : spec.fit === 'flat'
           ? flatFace(size)
           : null;
+  // Inward from the prop toward the middle of the room: the only side of a prop
+  // standing against a wall that the camera can actually get to. Taken the other way
+  // round it put the camera through the back wall for everything on the desk, which is
+  // most of the room — the section opened onto the outside face of the concrete.
+  // A screen lying flat — the tablet — is the one prop the inward line cannot frame:
+  // its picture faces up, so the camera goes over it instead, leaning a little toward
+  // the reader's side (the picture's bottom) so its roll is pinned and the page sits
+  // upright on screen. A `dir` in the table still overrides either.
+  const flatScreen = face && Math.abs(face.normal?.y ?? 0) > 0.9;
+  const dir = spec.dir
+    ? new THREE.Vector3(...spec.dir).normalize()
+    : flatScreen
+      ? face.normal.clone().addScaledVector(face.up, -FLAT_LEAN)
+      : new THREE.Vector3(roomCenter.x - center.x, 0, roomCenter.z - center.z);
+  // A prop sitting dead centre gives a zero-length vector; fall back to the room's
+  // default three-quarter view rather than dividing by zero.
+  if (dir.lengthSq() < 1e-6) dir.set(1, 0.55, 1);
+  dir.normalize();
+
+  const fov = THREE.MathUtils.degToRad(camera.fov);
+  const aspect = Number.isFinite(camera.aspect) && camera.aspect > 0 ? camera.aspect : 1;
+
   const fitHeight = face
     ? face.height / 2 / Math.tan(fov / 2)
     : radius / Math.sin(fov / 2);

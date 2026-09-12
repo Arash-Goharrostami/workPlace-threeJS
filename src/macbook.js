@@ -11,14 +11,16 @@ import { STAND_SLOPE } from './deskAccessories.js';
  */
 
 /**
- * `npm run shrink -- macbookPro16 1024 85` took it from 3.75 MB to 669 KB, and nothing
- * about the model was thrown away to get there: all 112,620 triangles, all 60 primitives
- * and every texture at its native resolution. The saving is entirely that fourteen of its
- * sixteen maps were PNGs with no alpha to justify one, plus the UV sets no material reads.
+ * `npm run shrink -- macbookPro16 512 75 0.5 --coarse` takes it from 3.75 MB to 345 KB:
+ * 180 KB of maps, 125 KB of geometry. The maps are capped at 512² and re-encoded — the
+ * lid's screen content is drawn on its own plane by `resume/screen.js`, so the model's
+ * own maps only dress the body — and the mesh is halved rather than gutted.
  *
- * An earlier pass reached 358 KB by decimating to 12,977 triangles and it looked wrong,
- * which is the note worth keeping: on this model the textures were the waste and the mesh
- * was not.
+ * The halving is the judgement call. A `1024 85` pass with no simplify was 669 KB and
+ * threw nothing away; an earlier pass reached 358 KB by decimating to 12,977 triangles
+ * (ratio ≈ 0.12) and it looked wrong. 0.5 keeps the ports, keys and hinge and is the
+ * furthest this mesh should be taken; the screen is found by area, not by name, so the
+ * cut does not touch how the section frames it.
  */
 const MODEL_URL = 'models/macbookPro16.glb';
 

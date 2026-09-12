@@ -11,14 +11,23 @@ import { loadGLB } from './gltfLoader.js';
  */
 
 /**
- * `npm run shrink -- guitarOnStand 512 85 0.8` took it from 4.19 MB to 951 KB.
+ *     npm run shrink:parts -- guitarOnStand \
+ *       --drop Interior,Kerfing_interior,Lining \
+ *       --keep Sounboard,Strings,Bridge,SaddleNut,Markings,Pickguard \
+ *       --ratio 0.5 512 75 --coarse
+ *
+ * takes it from 4.19 MB to 390 KB: 119 KB of maps, 269 KB of geometry.
  *
  * Unlike the other props this one cannot be shrunk on textures alone: its geometry is
- * 902 KB even untouched — 250,000 triangles for something standing against the far wall —
- * so it is the one model here carrying a deliberate mesh reduction, down to 172,724. That
- * is a 31% cut, chosen after a 67% one read badly; the body's curve is what goes first if
- * this is ever pushed further. Textures are at 512, where the three metallic/roughness
- * maps that were 1 MB of PNG between them cost almost nothing.
+ * 902 KB even untouched — 250,000 triangles for something standing against the far
+ * wall. But the triangles are not worth the same. A whole-model simplify (0.8, then 0.5)
+ * took the edge off the soundboard first, which is the one face the room looks at, while
+ * spending detail on an interior nobody sees through the sound hole. So the parts are
+ * shrunk apart: the interior (three materials) is dropped outright, the soundboard and
+ * everything sitting on it are kept whole, and the back, sides, neck, hardware and
+ * stand are halved. `Sounboard` is the material's own spelling. Textures are at 512,
+ * where the three metallic/roughness maps that were 1 MB of PNG between them cost
+ * almost nothing; `--coarse` is 12-bit positions — 0.3 mm on a prop 1.15 m tall.
  */
 const MODEL_URL = 'models/guitarOnStand.glb';
 
