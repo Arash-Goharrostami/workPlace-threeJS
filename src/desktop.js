@@ -35,18 +35,22 @@ export function menuBarHeight(W, H) {
   return Math.round(Math.min(W, H) * 0.033);
 }
 
+/** The menus Notes and TextEdit put up — what a window shows unless it says otherwise. */
+const MENUS = ['File', 'Edit', 'Format', 'View', 'Window', 'Help'];
+
 /**
  * The menu bar: the Apple mark and `app`'s menus on the left, Control
  * Centre and the machine's own clock on the right, over solid black.
  *
- * No battery and no charge reading: this is a desk display driven by a Mac Pro, and a
- * machine on mains shows neither.
+ * No battery and no charge reading unless `laptop` says so: the desk displays are
+ * driven by a Mac Pro, and a machine on mains shows neither. The MacBook's own lid
+ * (`stackApp.js`) is the one that does, with Wi-Fi beside them.
  *
  * Solid rather than the frosted strip it used to be: the screen behind it is a
  * near-black page in Notes' own dark mode, and that is what macOS's bar reads as there
  * — a black band with no seam under it, which is also how the reference shot reads.
  */
-export function drawMenuBar(c, W, H, app = 'Notes') {
+export function drawMenuBar(c, W, H, app = 'Notes', menus = MENUS, laptop = false) {
   const barH = menuBarHeight(W, H);
   const text = Math.round(barH * 0.5);
 
@@ -73,7 +77,7 @@ export function drawMenuBar(c, W, H, app = 'Notes') {
   x += c.measureText(app).width + text * 1.15;
 
   c.font = `400 ${text}px ${FONT}`;
-  for (const item of ['File', 'Edit', 'Format', 'View', 'Window', 'Help']) {
+  for (const item of menus) {
     c.fillText(item, x, mid);
     x += c.measureText(item).width + text * 1.15;
   }
@@ -88,6 +92,57 @@ export function drawMenuBar(c, W, H, app = 'Notes') {
   right -= c.measureText(clockText()).width + text * 1.5;
 
   drawControlCentre(c, right, mid, barH * 0.4);
+  right -= barH * 0.4 + text * 1.3;
+
+  if (laptop) {
+    drawBattery(c, right, mid, barH * 0.4);
+    right -= barH * 0.9 + text * 1.1;
+    drawWifi(c, right, mid, barH * 0.4);
+  }
+  c.restore();
+}
+
+/** The battery, most of the way full, its right end at `right`. */
+function drawBattery(c, right, y, h) {
+  const w = h * 1.9;
+  const x = right - w;
+  c.save();
+  c.strokeStyle = 'rgba(255, 255, 255, .6)';
+  c.lineWidth = Math.max(1, h * 0.12);
+  c.beginPath();
+  c.roundRect(x, y - h / 2, w, h, h * 0.22);
+  c.stroke();
+  // The nub on the positive end.
+  c.fillStyle = 'rgba(255, 255, 255, .6)';
+  c.beginPath();
+  c.roundRect(x + w + h * 0.1, y - h * 0.18, h * 0.14, h * 0.36, h * 0.06);
+  c.fill();
+  // The charge.
+  const inset = h * 0.18;
+  c.fillStyle = '#ffffff';
+  c.beginPath();
+  c.roundRect(x + inset, y - h / 2 + inset, (w - inset * 2) * 0.82, h - inset * 2, h * 0.1);
+  c.fill();
+  c.restore();
+}
+
+/** Wi-Fi: three arcs over a dot, the widest at the top, its right edge at `right`. */
+function drawWifi(c, right, y, h) {
+  const cx = right - h * 0.55;
+  const cy = y + h * 0.42;
+  c.save();
+  c.strokeStyle = '#ffffff';
+  c.lineWidth = Math.max(1, h * 0.16);
+  c.lineCap = 'round';
+  for (const r of [h * 0.3, h * 0.58, h * 0.86]) {
+    c.beginPath();
+    c.arc(cx, cy, r, Math.PI * 1.25, Math.PI * 1.75);
+    c.stroke();
+  }
+  c.fillStyle = '#ffffff';
+  c.beginPath();
+  c.arc(cx, cy, h * 0.1, 0, Math.PI * 2);
+  c.fill();
   c.restore();
 }
 

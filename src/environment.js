@@ -9,6 +9,14 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 const AMBIENT_FILL = 0.78;
 
 /**
+ * A touch device is a phone or a tablet, and its GPU pays for every shadow texel
+ * sampled. The key light's map is halved there — 1024² is soft enough for a scene
+ * seen on a 6-inch screen and a quarter of the fill-rate of the desktop's 2048².
+ */
+export const COARSE_POINTER = window.matchMedia('(pointer: coarse)').matches;
+const SHADOW_MAP_SIZE = COARSE_POINTER ? 1024 : 2048;
+
+/**
  * Image-based lighting from three's built-in room environment (no external HDR
  * file needed) plus a hemisphere fill and a shadow-casting key light.
  * Returns handles the caller needs once the model bounds are known.
@@ -28,7 +36,7 @@ export function setupEnvironment(scene, renderer) {
 
   const key = new THREE.DirectionalLight(0xffffff, 1.6);
   key.castShadow = true;
-  key.shadow.mapSize.set(2048, 2048);
+  key.shadow.mapSize.set(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
   key.shadow.bias = -0.0005;
   key.shadow.normalBias = 0.02;
   scene.add(key);
@@ -49,6 +57,9 @@ export function setupEnvironment(scene, renderer) {
   // **Anything that moves a light or adds geometry has to call `refreshShadows()`, or
   // its shadow silently will not appear.**
   renderer.shadowMap.autoUpdate = false;
+  // A mobile browser drops the WebGL context when the tab is backgrounded for long enough;
+  // three rebuilds its own state on restore, but the cached map above is gone with it.
+  renderer.domElement.addEventListener('webglcontextrestored', () => refreshShadows());
 
   const grid = new THREE.GridHelper(1, 20, 0x4a5162, 0x2b303b);
   grid.material.transparent = true;
@@ -61,8 +72,12 @@ export function setupEnvironment(scene, renderer) {
     renderer.shadowMap.needsUpdate = true;
   }
 
+  /** The box the rig was last fitted to — what the debug panel's Copy view measures against. */
+  let bounds = null;
+
   /** Scale the light rig, floor and grid to the loaded model's bounds. */
   function fitToBounds(box) {
+    bounds = box.clone();
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
     const radius = Math.max(size.length() / 2, 1e-3);
@@ -93,5 +108,5 @@ export function setupEnvironment(scene, renderer) {
     pmrem.dispose();
   }
 
-  return { grid, fitToBounds, refreshShadows, dispose };
+  return { grid, fitToBounds, refreshShadows, dispose, get bounds() { return bounds; } };
 }

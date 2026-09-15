@@ -22,18 +22,26 @@
 AirPods_Max	airPodsMax
 BenQ_Screenbar_Halo	benqScreenbar
 BenQ_Screenbar_Halo_Remote	benqScreenbarRemote
+Blender_Mug_for_Blender	blenderMug
 Black_Computer_Chair_-_Mesh_Back_Support	officeChair
 Blind_curtain	blindCurtain
+Books_Set_1	booksSet1
 Cable_holder	cableHolder
 Composition_of_frames_for_wall_decoration	wallFrames
 Desk	desk
+Dumbbells	dumbbells
 Free_Wall_outlets_and_switches_pack	wallOutlets
+Holow_Knight	hollowKnight
+Hornet	hornet
+Lenovo_laptop	penDisplay
 Mac_Pro	macPro
 Paper_Tablet	paperTablet
 Power_Plug_-Outlet_-Adapter__Connector_Strip	powerStrip
 Power_cable_hight-poly	powerCable
+Random_Books	books
 SOCKET__DE_PISO	floorSocket
 USB-C_Charging_Cable_Type-C__Type-C	usbCable
+low_poly_sticky_notes	stickyNotes
 Workplace	workplace
 
 # From the WorkDesk3D asset pack, via `npm run apple`.

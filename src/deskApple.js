@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { loadGLB } from './gltfLoader.js';
 import { buildIphone15Pro } from './iphone15Pro.js';
+import { dressWatchFace } from './watchFace.js';
 
 /**
  * The four Apple products laid out on the desk in front of the display: an iPad Pro
@@ -86,6 +87,8 @@ export async function addDeskApple(parent, deskBox, display) {
     // not be scaled again.
     iphone: prepare(buildIphone15Pro(), 'iPhone_15_Pro', SCALE),
   };
+  // The face lights up when the Contact section opens — see `resume/index.js`.
+  dressWatchFace(placed.watch);
 
   for (const [key, object] of Object.entries(placed)) {
     // Parented before measuring: each root carries an offset, so a box taken while

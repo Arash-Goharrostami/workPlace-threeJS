@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createNotesApp } from './notesApp.js';
 import { createTextEditApp } from './textEditApp.js';
+import { createStackApp } from './stackApp.js';
 
 /**
  * A section drawn on its prop's own screen, instead of in the sidebar.
@@ -91,7 +92,7 @@ const FACES = {
 };
 const loaded = new Map();
 
-function loadFace(name) {
+export function loadFace(name) {
   if (!FACES[name]) return Promise.resolve();
   if (!loaded.has(name)) {
     const font = new FontFace(name, `url(${FACES[name]})`);
@@ -103,6 +104,107 @@ function loadFace(name) {
     );
   }
   return loaded.get(name);
+}
+
+/**
+ * The glyphs the stack's chips carry, from `public/skillsIcon/` by the `icon` a tag
+ * names in `content.js`. They arrive as black-fill SVGs, so the file is fetched as text
+ * and its fill rewritten to the ink the chip sets its word in before it becomes an
+ * image — one per name and colour, since a group's mark is set in the accent.
+ * Like a face, an icon cannot be waited for mid-paint: `paint()` repaints the screen
+ * once the set a section needs has landed, and `chips()` reserves the slot either way.
+ */
+const icons = new Map();
+
+export function loadIcon(name, color) {
+  const key = `${name}|${color}`;
+  if (!icons.has(key)) {
+    const entry = { image: null, promise: null };
+    entry.promise = fetch(`skillsIcon/${name}.svg`)
+      .then((response) => {
+        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+        return response.text();
+      })
+      .then((svg) => {
+        // Any fill the file spells out becomes the chip's ink; a path with none picks
+        // the same up from the root.
+        const tinted = svg
+          .replace(/fill="(#[0-9a-fA-F]{3,8}|currentColor|url\(#[^)]*\))"/g, `fill="${color}"`)
+          // The same fill spelt as CSS, in a `<style>` block or a `style=` attribute.
+          .replace(/fill:\s*#[0-9a-fA-F]{3,8}/g, `fill:${color}`)
+          // An outline icon draws with its stroke instead; that takes the ink too.
+          .replace(/stroke="#[0-9a-fA-F]{3,8}"/g, `stroke="${color}"`)
+          .replace(/stroke:\s*#[0-9a-fA-F]{3,8}/g, `stroke:${color}`)
+          // A white plate behind the mark (Next.js ships one) would be a white square
+          // on the chip: it goes clear rather than taking the ink.
+          .replace(/fill="(white|#fff(?:fff)?)"/gi, 'fill="none"')
+          .replace(/<svg\b(?![^>]*\sfill=)/, `<svg fill="${color}"`)
+          // A file with a viewBox but no width and height has no intrinsic size as an
+          // image, and some browsers draw nothing for it (`frontend.svg` was one). The
+          // size only sets the raster's scale, so any generous square does.
+          .replace(/<svg\b(?![^>]*\swidth=)/, '<svg width="800" height="800"');
+        const image = new Image();
+        return new Promise((resolve, reject) => {
+          image.onload = () => resolve(image);
+          image.onerror = reject;
+          image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(tinted)}`;
+        });
+      })
+      .then((image) => {
+        entry.image = image;
+        entry.crop = inkBounds(image);
+      })
+      .catch((error) => {
+        console.warn(`[resume] icon "${name}" failed to load:`, error);
+      });
+    icons.set(key, entry);
+  }
+  return icons.get(key);
+}
+
+/**
+ * The box the glyph actually fills, in image pixels. The files come from different
+ * hands and leave different margins inside their viewBox — Docker sits low in a 32
+ * square, Kubernetes fills its 16 — so drawn as-is they land at different sizes on the
+ * chips. Found by rasterising once and scanning the alpha; `chips()` draws the box, not
+ * the file, so every glyph fills its slot the same way.
+ */
+function inkBounds(image) {
+  const N = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = N;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(image, 0, 0, N, N);
+  const { data } = ctx.getImageData(0, 0, N, N);
+  let minX = N, minY = N, maxX = -1, maxY = -1;
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      if (data[(y * N + x) * 4 + 3] < 16) continue;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+  if (maxX < 0) return { x: 0, y: 0, w: image.width, h: image.height };
+  const sx = image.width / N;
+  const sy = image.height / N;
+  return { x: minX * sx, y: minY * sy, w: (maxX - minX + 1) * sx, h: (maxY - minY + 1) * sy };
+}
+
+/** Every icon a section's chips will ask for, paired with the ink each is drawn in. */
+function iconsOf(section) {
+  const wanted = [];
+  for (const block of section.blocks ?? []) {
+    if (block.kind !== 'skills') continue;
+    for (const group of block.groups) {
+      if (group.icon) wanted.push([group.icon, ACCENT]);
+      for (const tag of group.tags) {
+        if (tag.icon) wanted.push([tag.icon, INK]);
+      }
+    }
+  }
+  return wanted;
 }
 
 /** Type sizes and spacing, as fractions of the canvas width — so the layout scales. */
@@ -398,6 +500,7 @@ export function setupScreens() {
       let app = null;
       if (section.app === 'notes') app = createNotesApp(section, view);
       else if (section.app === 'textEdit') app = createTextEditApp(section, view);
+      else if (section.app === 'shortcuts') app = createStackApp(section, view);
       const full = app ? null : draw(section, view.width);
       // Drawn now in whatever face is in; drawn again once the section's own has
       // arrived. Only for a page — the windows set their own type. Not gated on
@@ -408,6 +511,18 @@ export function setupScreens() {
           ready.add(section.font);
           if (painted.get(prop)?.plane === plane) screens.paint(prop, section);
         });
+      }
+      // The same again for the chips' icons: drawn with their slots empty now, and
+      // once more with the glyphs in. Only the ones still on their way queue a repaint.
+      if (!app) {
+        const pending = iconsOf(section)
+          .map(([name, color]) => loadIcon(name, color))
+          .filter((entry) => !entry.image);
+        if (pending.length) {
+          Promise.all(pending.map((entry) => entry.promise)).then(() => {
+            if (painted.get(prop)?.plane === plane) screens.paint(prop, section);
+          });
+        }
       }
       const page = app
         ? { view, texture, app }
@@ -489,6 +604,14 @@ export function setupScreens() {
       page.scroll = Math.min(page.span, Math.max(0, page.scroll + delta));
       if (page.scroll !== was) blit(page);
       return true;
+    },
+
+    /** A window's phone layout on or off — only a window that has one answers. */
+    setCompact(prop, on) {
+      const page = painted.get(prop)?.plane.userData.page;
+      if (!page?.app?.setCompact) return;
+      page.app.setCompact(on);
+      page.texture.needsUpdate = true;
     },
 
     /** Back to the top — a section is opened at its beginning, not where it was left. */
@@ -960,41 +1083,153 @@ function stats(ctx, cells, pad, top, W, u, paint) {
 }
 
 /**
- * The stack, as a tracked-out group heading with its tags wrapped underneath as chips.
- *
- * Laid out in the same pass that paints it, so a chip cannot be measured onto one row
- * and drawn on another — the page's height decides how far the screen scrolls.
+ * A pane of Apple's liquid glass, as a canvas can fake it: a frosted fill that is a
+ * touch lighter along the top, a soft drop shadow lifting it off the ground, a hairline
+ * rim brighter where the light lands and dimmer underneath, and a thin specular along
+ * the inside of the top edge. Everything on the stack page — the cards and every chip
+ * in them — is set in the same pane, so no two of them read as different materials.
+ * Exported for the Shortcuts window (`stackApp.js`), whose tiles are the same glass.
  */
-function skills(ctx, groups, pad, top, W, u, paint) {
-  let y = top;
-  for (const group of groups) {
-    ctx.font = `500 ${u * SCALE.group}px ${face}`;
-    if (paint) {
-      ctx.fillStyle = INK_FAINT;
-      ctx.fillText(spaced(group.title.toUpperCase()), pad, y);
-    }
-    y += u * SCALE.group * 2.1;
-    y = chips(ctx, group.tags, pad, y, pad + W - pad * 2, u, paint) + u * 0.045;
-  }
+export function glass(ctx, x, y, w, h, radius, u) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, radius);
 
-  return y;
+  // The lift.
+  ctx.shadowColor = 'rgba(0, 0, 0, .35)';
+  ctx.shadowBlur = u * 0.02;
+  ctx.shadowOffsetY = u * 0.006;
+  const fill = ctx.createLinearGradient(0, y, 0, y + h);
+  fill.addColorStop(0, 'rgba(255, 255, 255, .11)');
+  fill.addColorStop(1, 'rgba(255, 255, 255, .05)');
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+
+  // The rim.
+  const rim = ctx.createLinearGradient(0, y, 0, y + h);
+  rim.addColorStop(0, 'rgba(255, 255, 255, .38)');
+  rim.addColorStop(0.5, 'rgba(255, 255, 255, .12)');
+  rim.addColorStop(1, 'rgba(255, 255, 255, .06)');
+  ctx.strokeStyle = rim;
+  ctx.lineWidth = Math.max(1, u * 0.0016);
+  ctx.stroke();
+
+  // The specular: clipped to the pane, a brighter line just inside the top edge that
+  // fades out before the corners.
+  ctx.clip();
+  const shine = ctx.createLinearGradient(x, 0, x + w, 0);
+  shine.addColorStop(0, 'rgba(255, 255, 255, 0)');
+  shine.addColorStop(0.25, 'rgba(255, 255, 255, .45)');
+  shine.addColorStop(0.75, 'rgba(255, 255, 255, .45)');
+  shine.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  ctx.fillStyle = shine;
+  ctx.fillRect(x + radius * 0.6, y + ctx.lineWidth, w - radius * 1.2, Math.max(1, u * 0.0012));
+  ctx.restore();
 }
 
 /**
- * A row of tags as rounded chips, wrapped to `right`. Shared by the stack and by the
- * roles in the timeline, which name theirs the same way.
+ * The stack, as a grid of cards: two to a row, each a hairline cell like `stats()`
+ * draws, with an accent tick, the tracked-out group title, the group's `note` under it
+ * and its tags wrapped as chips inside. The two cells of a row share the taller height;
+ * a narrow viewport stacks them one per row.
+ *
+ * Laid out in the same pass that paints it, so a chip cannot be measured onto one row
+ * and drawn on another — the page's height decides how far the screen scrolls. Each
+ * card is measured with a silent pass through `chips()` before its row is painted, so
+ * the pair's height is known before either is drawn.
+ */
+function skills(ctx, groups, pad, top, W, u, paint) {
+  const columns = NARROW.matches ? 1 : 2;
+  const gap = u * 0.045;
+  const width = (W - pad * 2 - gap * (columns - 1)) / columns;
+  const inset = u * 0.05;
+  // The card's heading is set larger than the sidebar's group labels and in full
+  // ink: it is the one line on the lid that names what the chips under it are.
+  const title = u * SCALE.group * 1.5;
+  const note = u * SCALE.label * 1.2;
+
+  // Where the card's body goes and how tall it comes out, without drawing anything.
+  const card = (group, x, y, draw) => {
+    let cursor = y + inset + title * 1.1;
+    // The group's own mark, in the accent, ahead of its title; the title steps aside
+    // for it whether or not the file has landed, like a chip's slot.
+    const mark = group.icon ? loadIcon(group.icon, ACCENT) : null;
+    const markSize = title * 1.9;
+    const lead = mark ? markSize + title * 0.6 : 0;
+    ctx.font = `500 ${title}px ${face}`;
+    if (draw) {
+      if (mark?.image) {
+        ctx.imageSmoothingQuality = 'high';
+        const { x: cx, y: cy, w, h } = mark.crop;
+        const fit = markSize / Math.max(w, h);
+        const dw = w * fit;
+        const dh = h * fit;
+        ctx.drawImage(
+          mark.image, cx, cy, w, h,
+          x + inset + (markSize - dw) / 2, cursor + title * 0.5 - dh / 2, dw, dh
+        );
+      }
+      ctx.fillStyle = INK;
+      ctx.fillText(spaced(group.title.toUpperCase()), x + inset + lead, cursor);
+    }
+    cursor += title * 1.8;
+    if (group.note) {
+      ctx.font = `400 ${note}px ${face}`;
+      if (draw) {
+        ctx.fillStyle = INK_DIM;
+        ctx.fillText(group.note, x + inset, cursor);
+      }
+      cursor += note * 2.1;
+    } else {
+      cursor += title * 0.7;
+    }
+    cursor = chips(ctx, group.tags, x + inset, cursor, x + width - inset, u, draw);
+    return cursor + inset - y;
+  };
+
+  let y = top;
+  for (let i = 0; i < groups.length; i += columns) {
+    const row = groups.slice(i, i + columns);
+    const heights = row.map((group, j) => card(group, pad + j * (width + gap), y, false));
+    const height = Math.max(...heights);
+
+    for (let j = 0; j < row.length; j++) {
+      const x = pad + j * (width + gap);
+      if (!paint) continue;
+      glass(ctx, x, y, width, height, u * 0.022, u);
+      card(row[j], x, y, true);
+    }
+    y += height + gap;
+  }
+
+  return y - gap + u * 0.045;
+}
+
+/**
+ * A row of tags as rounded chips of glass, wrapped to `right`. Shared by the stack and
+ * by the roles in the timeline, which name theirs the same way. Every chip is the same
+ * pane — see `glass()` — whatever it says or carries.
  */
 function chips(ctx, tags, left, top, right, u, paint) {
   const size = u * SCALE.chip;
-  const height = size * 2.1;
-  const gap = size * 0.5;
-  const inset = size * 0.85;
+  const height = size * 2.2;
+  const gap = size * 0.65;
+  const inset = size * 0.95;
+  // The glyph's square, and the breath between it and the word.
+  const glyph = size * 1.4;
+  const after = size * 0.45;
 
   ctx.font = `400 ${size}px ${face}`;
   let x = left;
   let y = top;
   for (const tag of tags) {
-    const width = ctx.measureText(tag).width + inset * 2;
+    const label = tag.name ?? tag;
+    // The slot is reserved whether or not the file has landed, so the row a chip sits
+    // on does not change when the repaint brings the glyph in.
+    const icon = tag.icon ? loadIcon(tag.icon, INK) : null;
+    const lead = icon ? glyph + after : 0;
+    const width = ctx.measureText(label).width + inset * 2 + lead;
     // A chip that would run past the right edge starts the next row instead; one wider
     // than the column on its own is left to overhang rather than loop.
     if (x > left && x + width > right) {
@@ -1002,16 +1237,23 @@ function chips(ctx, tags, left, top, right, u, paint) {
       y += height + gap;
     }
     if (paint) {
-      ctx.beginPath();
-      ctx.roundRect(x, y, width, height, height / 2);
-      ctx.fillStyle = 'rgba(255, 255, 255, .03)';
-      ctx.fill();
-      ctx.strokeStyle = LINE;
-      ctx.lineWidth = Math.max(1, u * 0.0014);
-      ctx.stroke();
+      glass(ctx, x, y, width, height, height / 2, u);
 
-      ctx.fillStyle = INK_DIM;
-      ctx.fillText(tag, x + inset, y + height * 0.28);
+      if (icon?.image) {
+        ctx.imageSmoothingQuality = 'high';
+        // The glyph's own box, fitted inside the slot and centred — so a wide mark and
+        // a tall one read the same size, whatever margin the file left round them.
+        const { x: cx, y: cy, w, h } = icon.crop;
+        const fit = glyph / Math.max(w, h);
+        const dw = w * fit;
+        const dh = h * fit;
+        ctx.drawImage(
+          icon.image, cx, cy, w, h,
+          x + inset + (glyph - dw) / 2, y + (height - dh) / 2, dw, dh
+        );
+      }
+      ctx.fillStyle = INK;
+      ctx.fillText(label, x + inset + lead, y + height * 0.28);
     }
     x += width + gap;
   }

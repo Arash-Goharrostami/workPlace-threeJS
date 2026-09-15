@@ -31,10 +31,14 @@ export function extendBackWall(model, deskBox) {
   const axis = box.max.x - box.min.x >= box.max.z - box.min.z ? 'x' : 'z';
 
   // The end that meets the other wall is whichever is nearer the room's own extent;
-  // that one stays put and the opposite, free end is the one that travels.
+  // that end is pinned and the opposite, free end is the one that travels. It is
+  // pinned to the room's outer extent rather than to where the model left it: as
+  // authored the wall stops half a centimetre short of the side wall, which from
+  // outside the corner reads as a slot between the two. Running it through to the
+  // side wall's outer face closes that and makes the corner one solid block.
   const wallsBox = boxOf(walls);
   const freeEndIsMin = box.min[axis] - wallsBox.min[axis] > wallsBox.max[axis] - box.max[axis];
-  const anchor = freeEndIsMin ? box.max[axis] : box.min[axis];
+  const anchor = freeEndIsMin ? wallsBox.max[axis] : wallsBox.min[axis];
   const freeEnd = freeEndIsMin ? box.min[axis] : box.max[axis];
   const fullTarget = freeEndIsMin
     ? deskBox.min[axis] - WALL_OVERHANG
@@ -50,8 +54,8 @@ export function extendBackWall(model, deskBox) {
   wall.scale[localAxisFor(wall, axis)] *= newSpan / currentSpan;
   wall.updateMatrixWorld(true);
 
-  // Scaling happens about the wall's own origin, so slide it back until the anchored
-  // end is exactly where it started.
+  // Scaling happens about the wall's own origin, so slide it until the anchored end
+  // lands on the side wall's outer face.
   const scaled = boxOf(wall);
   const shift = new THREE.Vector3();
   shift[axis] = anchor - (freeEndIsMin ? scaled.max[axis] : scaled.min[axis]);

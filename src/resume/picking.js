@@ -21,7 +21,8 @@ import * as THREE from 'three';
 const CLICK_SLOP = 4;
 
 export function setupPicking({
-  anchors, camera, canvas, outlines, onOpen, onHover, onDismiss, onScreenClick, onScreenHover,
+  anchors, camera, canvas, outlines, swallow = [],
+  onOpen, onHover, onDismiss, onMiss, onScreenClick, onScreenHover,
 }) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
@@ -88,6 +89,9 @@ export function setupPicking({
 
     const { key } = cast();
     if (key) onOpen(key);
+    // A click on nothing readable brings the room back to its overview — unless it was
+    // on something with a click of its own (the guitar), which is not nothing.
+    else if (!hitsSwallowed()) onMiss?.();
   });
 
   /** Recasts from the last pointer position and moves the rim if it landed elsewhere. */
@@ -112,7 +116,7 @@ export function setupPicking({
     outlines.hover(hovered ? anchors[hovered].object : null);
 
     canvas.style.cursor = hovered ? 'pointer' : '';
-    onHover(hovered);
+    onHover?.(hovered);
   };
 
   /**
@@ -129,6 +133,13 @@ export function setupPicking({
     )[0];
     if (!hit) return { key: null, hit: null };
     return { key: targets.find((t) => contains(t.object, hit.object))?.key ?? null, hit };
+  }
+
+  /** Whether the pointer is on one of the `swallow` objects, which take their own clicks. */
+  function hitsSwallowed() {
+    if (!swallow.length) return false;
+    raycaster.setFromCamera(pointer, camera);
+    return raycaster.intersectObjects(swallow, true).length > 0;
   }
 
   /**
@@ -151,7 +162,7 @@ export function setupPicking({
       outlines.hover(null);
       hovered = null;
       canvas.style.cursor = '';
-      onHover(null);
+      onHover?.(null);
     }
   };
 

@@ -9,10 +9,12 @@ import { loadGLB } from './gltfLoader.js';
  * a real tower's depth, height and width — but laid out with its depth along X, so it
  * needs a quarter turn to face the room.
  *
- * `npm run shrink macPro 512 85 0.22` took it from 10.2 MB to 933 KB. Unlike the
- * ScreenBar, the weight here was geometry, so it is the one model so far that needed
- * decimating: 252k triangles down to 66k, over the same 137 primitives. The exporter had
- * also left sixteen 1x1 placeholder PNGs behind; those are gone.
+ * `npm run shrink -- macPro 256 80 0.10 --coarse` took it from 10.2 MB to 418 KB. Unlike
+ * the ScreenBar, the weight here was geometry, so it is the one model so far that needed
+ * decimating: 252k triangles down to 37k, over the same 137 primitives (the simplifier's
+ * error bound stops it short of the 0.10 asked for). The tower stands on the floor under
+ * the desk, small on screen, so 256² maps and 12-bit positions cost it nothing visible.
+ * The exporter had also left sixteen 1x1 placeholder PNGs behind; those are gone.
  *
  * The three BLEND-mode panels keep their alpha, which is the thing to look at first if
  * the tower ever renders wrong — the front lattice is a cut-out texture, not geometry, so

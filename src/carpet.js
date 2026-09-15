@@ -34,7 +34,7 @@ const FIT = 0.9;
  * (99,105,105) and (117,103,104) — but that faint colour is what makes the pale
  * squares read as cream and yellow against a room of concrete.
  */
-const SATURATION = 0.25;
+const SATURATION = 0;
 
 /**
  * The knee that pulls the light squares down without taking the dark ones with them.
@@ -70,7 +70,7 @@ const YAW = THREE.MathUtils.degToRad(-2.4);
  * lit by one lamp. This room is darker still, so this is the first knob to reach for
  * if the rug reads as a bright patch on the floor.
  */
-const TINT = 0.42;
+const TINT = 0.6;
 
 /** Lays the rug on the floor, centred under the chair. */
 export async function addCarpet(parent, chair, floor, desk) {

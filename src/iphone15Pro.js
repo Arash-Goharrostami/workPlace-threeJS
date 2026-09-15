@@ -47,7 +47,7 @@ export function buildIphone15Pro() {
   const M = {
     titanium: new THREE.MeshStandardMaterial({ name: 'iphone_titanium', color: 0x8c8781, roughness: 0.38, metalness: 0.85 }),
     backGlass: new THREE.MeshStandardMaterial({ name: 'iphone_back_glass', color: 0x6f6b66, roughness: 0.62, metalness: 0.25 }),
-    screen: new THREE.MeshStandardMaterial({ name: 'iphone_screen_glass', color: 0x08090b, roughness: 0.07, metalness: 0.1 }),
+    screen: new THREE.MeshStandardMaterial({ name: 'iphone_screen_glass', color: 0x08090b, roughness: 0.55, metalness: 0.1 }),
     island: new THREE.MeshStandardMaterial({ name: 'iphone_dynamic_island', color: 0x000000, roughness: 0.3, metalness: 0 }),
     lensRing: new THREE.MeshStandardMaterial({ name: 'iphone_lens_ring', color: 0x9a958e, roughness: 0.3, metalness: 0.9 }),
     lensGlass: new THREE.MeshStandardMaterial({ name: 'iphone_lens_glass', color: 0x0a0d12, roughness: 0.06, metalness: 0.5 }),
@@ -55,9 +55,11 @@ export function buildIphone15Pro() {
     flash: new THREE.MeshStandardMaterial({ name: 'iphone_flash', color: 0xd8c9a8, roughness: 0.35, metalness: 0.1 }),
     // The screen on, showing the wallpaper from assets/. It is set as the
     // emissive map as well as the colour map, so the picture lights itself
-    // instead of going dark wherever the scene lights don't reach.
+    // instead of going dark wherever the scene lights don't reach. Matte, so the
+    // key light does not lie across the picture as a glossy patch — the glow is
+    // the emissive's, not a reflection's.
     display: new THREE.MeshStandardMaterial({
-      name: 'iphone_display_on', color: 0x000000, roughness: 0.15, metalness: 0,
+      name: 'iphone_display_on', color: 0x000000, roughness: 0.85, metalness: 0,
       emissive: 0xffffff, emissiveIntensity: 0.42,
     }),
     // The dock: heavily frosted glass over the wallpaper — the picture is only

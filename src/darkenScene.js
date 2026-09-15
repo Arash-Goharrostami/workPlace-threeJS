@@ -30,6 +30,11 @@ export function darkenScene(root) {
       seen.add(mat);
       // Materials authored for a specific look (the desk's walnut and iron) opt out.
       if (mat.userData?.keepColor) continue;
+      // A prop that arrives after the room-wide pass (the full display, swapped in over
+      // its placeholder) runs this on itself; the mark keeps either order from tinting
+      // a material twice.
+      if (mat.userData?.darkened) continue;
+      mat.userData.darkened = true;
       // The desk's corner patch has no map but must match the desk, not the room.
       const deskLike = mat.map || mat.userData?.deskLike;
       mat.color?.multiplyScalar(1 - (deskLike ? MAP_DARKEN : DARKEN));

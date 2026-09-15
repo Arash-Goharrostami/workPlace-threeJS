@@ -35,9 +35,11 @@ let pack = null;
 /**
  * Builds one lead. `route` is the world-space run, plug end first; `ends` optionally
  * carries a hand-dressed `{ position, rotation, scale }` for either end — a plug in a
- * real socket sits at an angle the run's own direction does not give.
+ * real socket sits at an angle the run's own direction does not give. `color` swaps the
+ * black for another colour on flex and connectors alike; given, it is taken as authored
+ * and `darkenScene()` leaves it, where the default black is left to the room-wide tint.
  */
-export async function addMainsCable({ parent, name, route, ends = [] }) {
+export async function addMainsCable({ parent, name, route, ends = [], color }) {
   const [plugPart, socketPart] = await Promise.all([
     connectorPart(PLUG_PART),
     connectorPart(SOCKET_PART),
@@ -48,14 +50,19 @@ export async function addMainsCable({ parent, name, route, ends = [] }) {
   if (points.length < 2) return null;
 
   const seat = (which, authored) => (authored ? fixed(authored) : tip(points, which));
-  const endA = place(parent, plugPart, `${name}_plug`, seat('start', ends[0]));
-  const endB = place(parent, socketPart, `${name}_head`, seat('end', ends[1]));
+  const endA = place(parent, plugPart, `${name}_plug`, seat('start', ends[0]), color);
+  const endB = place(parent, socketPart, `${name}_head`, seat('end', ends[1]), color);
 
+  const flex = new THREE.MeshStandardMaterial({ name: `${name}_flex`, ...CABLE_SPEC });
+  if (color !== undefined) {
+    flex.color.set(color);
+    flex.userData.keepColor = true;
+  }
   const cable = buildCable({
     name: `${name}_cable`,
     points,
     radius: CABLE_RADIUS,
-    material: new THREE.MeshStandardMaterial({ name: `${name}_flex`, ...CABLE_SPEC }),
+    material: flex,
     parent,
   });
   parent.add(cable);
@@ -117,13 +124,14 @@ function fixed({ position, rotation, scale }) {
 }
 
 /** Repaints one end, centres it on its own middle and sets it where it belongs. */
-function place(parent, model, name, { position, forward, rotation, scale }) {
+function place(parent, model, name, { position, forward, rotation, scale }, color) {
   const group = new THREE.Group();
   group.name = name;
   group.add(model.clone(true));
   if (scale) group.scale.fromArray(scale);
 
   const paint = new THREE.MeshStandardMaterial({ name: `${name}_shell`, ...CONNECTOR_SPEC });
+  if (color !== undefined) paint.color.set(color);
   // An authored finish — darkenScene() must not tint it a second time.
   paint.userData.keepColor = true;
   group.traverse((node) => {

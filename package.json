@@ -11,6 +11,7 @@
     "strip": "node scripts/strip-glb-image.mjs",
     "shrink": "node scripts/shrink-glb.mjs",
     "shrink:parts": "node scripts/shrink-parts.mjs",
+    "shrink:hornet-base": "node scripts/shrink-hornet-base.mjs",
     "shrink:textures": "node scripts/shrink-textures.mjs",
     "textures": "bash scripts/extract-desk-textures.sh",
     "apple": "bash scripts/import-apple-models.sh",

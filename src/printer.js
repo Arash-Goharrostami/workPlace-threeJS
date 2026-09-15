@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { loadGLB } from './gltfLoader.js';
+import { setupPrinterJob } from './printerJob.js';
+import { setupPrinterSound } from './printerSound.js';
 
 /**
  * The open-frame 3D printer standing on the desk's free right-hand arm — a gantry, a
@@ -24,11 +26,24 @@ import { loadGLB } from './gltfLoader.js';
  * the flag has to come with it.
  *
  * The geometry is untouched: no simplify ratio, since detail is the whole point of the
- * swap.
+ * swap. `printerJob.js` runs the carriage along the crossbar by bending the mesh's own
+ * vertices, at the pace of the motors `printerSound.js` plays from the machine; the
+ * per-frame step is left on `userData.update` for `main.js` to call, and the sound's
+ * `start(camera)` on `userData.startSound`, for the opening click to call — audio needs
+ * a gesture — its `setMuted` on `userData.setSoundMuted`, for the dock's button, and its
+ * `setDucked` on `userData.setSoundDucked`, for the résumé to turn the motors down while
+ * a prop is being read.
  *
  * Like the MacBook and the display, the source is Y-up, standing on y = 0 and centred on
  * its own footprint — so it only needs seating. It is 70 cm wide, 50 cm deep and 70 cm
  * tall, a little broader than the box it replaced.
+ *
+ * The finish is authored here. The file carries one material, `_D_Printer`, shared by the
+ * body and the roll on the crossbar, and it is mapped — which is exactly what the
+ * room-wide `darkenScene()` takes for the desk's laminate and tints down to 15%, so the
+ * printer stood on the desk nearly black. The material is cloned once and marked
+ * `keepColor`, so it escapes that pass and shows its own bake; the tint below lifts the
+ * bake a little further, since the source is authored dark for a studio render.
  */
 
 const MODEL_URL = 'models/printer3d.glb';
@@ -36,9 +51,34 @@ const MODEL_URL = 'models/printer3d.glb';
 /**
  * The source is authored in centimetres, which is this scene's own unit — unlike the
  * Apple models beside it, which arrive in metres. It came in at 70 units tall and that
- * is the 70 cm it should be, so there is nothing to convert.
+ * is the 70 cm it should be. The extra 8.5% is edit mode's: at true size the machine
+ * looked slight beside the display, and this is where it settled.
  */
-const SCALE = 1;
+const SCALE = 1.085;
+
+/**
+ * How far the printer is turned off the desk's axis, in degrees — a few degrees
+ * towards the chair, settled in edit mode, so it does not sit dead square to the wall.
+ */
+const TURN = -4.2;
+
+/**
+ * Where edit mode left the printer relative to where `standOnDesk()` centres it, in
+ * scene centimetres. Applied after seating, so the centring is still measured live.
+ */
+const NUDGE = new THREE.Vector3(-0.8, 0, 0);
+
+/**
+ * Multiplier on the material's colour, over its own bake — 1 shows the map as authored;
+ * this lifts it a step without changing its hue or shading.
+ */
+const BRIGHTEN = 0.95;
+
+/**
+ * At the source's metalness the shell would mirror the bright room the way the desk did
+ * before `darkenScene()` capped it; this keeps it reading as painted sheet metal.
+ */
+const MAX_METALNESS = 0.2;
 
 /** Gap left between the laptop stand and the printer's near side. */
 const SIDE_CLEARANCE = 6;
@@ -63,10 +103,13 @@ export async function addPrinter(parent, deskBox, stand) {
   const printer = gltf.scene;
   printer.name = '3D_printer';
   printer.scale.setScalar(SCALE);
+  printer.rotation.y = THREE.MathUtils.degToRad(TURN);
+  const finished = new Map();
   printer.traverse((node) => {
     if (!node.isMesh) return;
     node.castShadow = true;
     node.receiveShadow = true;
+    node.material = refinish(node.material, finished);
   });
 
   // Parented before measuring: the model root carries an offset, so a box taken
@@ -76,8 +119,36 @@ export async function addPrinter(parent, deskBox, stand) {
   printer.updateMatrixWorld(true);
 
   standOnDesk(printer, deskBox, stand);
+  printer.position.add(NUDGE);
+  printer.updateMatrixWorld(true);
+
+  const sound = setupPrinterSound(printer);
+  printer.userData.update = setupPrinterJob(printer, sound).update;
+  printer.userData.startSound = sound.start;
+  printer.userData.setSoundMuted = sound.setMuted;
+  printer.userData.setSoundDucked = sound.setDucked;
 
   return printer;
+}
+
+/**
+ * Clones the shared material once with the finish above: its own map, brightened by
+ * `BRIGHTEN`, and marked so `darkenScene()` leaves it alone — the finish is authored,
+ * not inherited.
+ */
+function refinish(material, finished) {
+  const known = finished.get(material);
+  if (known) return known;
+
+  const copy = material.clone();
+  copy.color.multiplyScalar(BRIGHTEN);
+  if (typeof copy.metalness === 'number') {
+    copy.metalness = Math.min(copy.metalness, MAX_METALNESS);
+  }
+  copy.userData.keepColor = true;
+  copy.needsUpdate = true;
+  finished.set(material, copy);
+  return copy;
 }
 
 /**

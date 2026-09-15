@@ -75,7 +75,7 @@ export function buildPhonePlayer(parent, { screenY }) {
   // apart. `renderOrder` settles it below: the card first, everything on it after.
   const card = canvasPanel(group, CARD_W, CARD_L, 1024, 812, 'iphone-player-card');
   card.mesh.position.set(0, Y.card, CARD_Z);
-  card.mesh.material.roughness = 0.2;
+  card.mesh.material.roughness = 0.6;
   card.mesh.material.emissiveIntensity = 0.4;
   card.mesh.material.alphaTest = 0;
   drawGlass(card, { radius: 0.08 });

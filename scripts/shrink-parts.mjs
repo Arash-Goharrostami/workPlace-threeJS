@@ -3,7 +3,9 @@
  * Shrinks a model part by part, where `shrink-glb.mjs` treats every triangle alike.
  *
  *     node scripts/shrink-parts.mjs <model> [--drop mat,mat] [--keep mat,mat]
+ *                                   [--only node,node] [--drop-nodes node,node]
  *                                   [--ratio r] [maxTextureSize] [quality] [--coarse]
+ *                                   [--out name]
  *
  * A model's parts are told apart by material name, which is the one handle a Sketchfab
  * export reliably has. Each primitive is then one of three things:
@@ -19,13 +21,25 @@
  * weld, Draco), so the two produce the same kind of file. It starts from
  * `tmp/originals/<model>.orig.glb`, the same untouched import `shrink-glb.mjs` keeps, so it
  * can be re-run with different lists without compounding a previous pass.
+ *
+ * `--only` and `--drop-nodes` cut by *node* name instead, for a source whose material
+ * names do not tell its parts apart: the pen display's `silver` is on the laptop, the
+ * stand and the pen holder alike. A mesh is matched through its own node or any
+ * ancestor, the nearest one deciding — so `--only tablet_13 --drop-nodes pen_holder_12`
+ * keeps the display, drops the holder inside it, and `pen_11` inside *that* is kept by
+ * naming it in `--only` too. With `--only` given, a mesh under no listed node is
+ * dropped. Both run before the material lists.
+ *
+ * `--out` writes the result as `public/models/<name>.glb` instead of over the model
+ * itself, for a second cut of the same import — `proDisplayXdrLite` is the display with
+ * its back lattice dropped and the rest coarsened, shown while the real one downloads.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { NodeIO } from '@gltf-transform/core';
 import { KHRONOS_EXTENSIONS } from '@gltf-transform/extensions';
-import { simplify, weld } from '@gltf-transform/functions';
+import { simplifyPrimitive, weld } from '@gltf-transform/functions';
 import { MeshoptSimplifier } from 'meshoptimizer';
 import draco3d from 'draco3dgltf';
 
@@ -39,22 +53,26 @@ const list = (flag) => {
 };
 const drop = new Set(list('--drop'));
 const keep = new Set(list('--keep'));
+const only = new Set(list('--only'));
+const dropNodes = new Set(list('--drop-nodes'));
 const ratio = Number(list('--ratio')[0] ?? 0.5);
+const out = list('--out')[0];
 const coarse = args.includes('--coarse');
 const [target, sizeArg = '1024', qualityArg = '85'] = args.filter((a) => !a.startsWith('--'));
 
 if (!target) {
-  console.error('Usage: shrink-parts.mjs <model> [--drop mat,mat] [--keep mat,mat] [--ratio r] [maxTextureSize] [quality] [--coarse]');
+  console.error('Usage: shrink-parts.mjs <model> [--drop mat,mat] [--keep mat,mat] [--only node,node] [--drop-nodes node,node] [--ratio r] [maxTextureSize] [quality] [--coarse] [--out name]');
   process.exit(1);
 }
 
 const name = path.basename(target, '.glb');
-const file = path.join('public/models', `${name}.glb`);
+const source = path.join('public/models', `${name}.glb`);
+const file = path.join('public/models', `${out ?? name}.glb`);
 const original = path.join('tmp/originals', `${name}.orig.glb`);
 if (!fs.existsSync(original)) {
   // First time through: the file in public/ is the original.
   fs.mkdirSync(path.dirname(original), { recursive: true });
-  fs.copyFileSync(file, original);
+  fs.copyFileSync(source, original);
 }
 
 // ── 1. the parts ─────────────────────────────────────────────────────────────────────
@@ -66,6 +84,26 @@ const doc = await io.read(original);
 await MeshoptSimplifier.ready;
 const tally = { dropped: [], kept: [], halved: [] };
 const tris = (prim) => Math.round((prim.getIndices()?.getCount() ?? prim.getAttribute('POSITION').getCount()) / 3);
+
+// The node cut first: a mesh goes with the nearest of its node and ancestors that either
+// list names. Under `--only`, one that reaches the root unnamed goes too.
+if (only.size || dropNodes.size) {
+  const gone = [];
+  for (const node of doc.getRoot().listNodes()) {
+    const mesh = node.getMesh();
+    if (!mesh) continue;
+    let verdict = only.size ? 'drop' : 'keep';
+    for (let at = node; at; at = at.getParentNode()) {
+      if (dropNodes.has(at.getName())) { verdict = 'drop'; break; }
+      if (only.has(at.getName())) { verdict = 'keep'; break; }
+    }
+    if (verdict === 'keep') continue;
+    gone.push(`${node.getName()} (${mesh.listPrimitives().reduce((n, p) => n + tris(p), 0).toLocaleString()})`);
+    node.setMesh(null);
+    if (mesh.listParents().every((p) => p.propertyType === 'Root')) mesh.dispose();
+  }
+  console.log(`nodes dropped: ${gone.join(', ') || '—'}`);
+}
 
 for (const mesh of doc.getRoot().listMeshes()) {
   for (const prim of mesh.listPrimitives()) {
@@ -82,23 +120,21 @@ for (const mesh of doc.getRoot().listMeshes()) {
   }
 }
 
-// Simplify what is left to simplify: the kept primitives are set aside, the rest go
-// through the same two passes `shrink-glb.mjs` runs, since meshoptimizer is greedy and
-// stops short in one.
-const spared = new Map();
+// Simplify what is left to simplify, primitive by primitive, in the same two passes
+// `shrink-glb.mjs` runs, since meshoptimizer is greedy and stops short in one. The kept
+// primitives are simply skipped — not lifted out of their mesh and put back, which is
+// what this used to do: `simplify()` disposes any mesh it finds empty, so a mesh whose
+// parts were *all* kept vanished with its node. The display's stand and mount plate
+// were the first to go.
+await doc.transform(weld());
 for (const mesh of doc.getRoot().listMeshes()) {
   for (const prim of mesh.listPrimitives()) {
-    if (keep.has(prim.getMaterial()?.getName() ?? '')) {
-      spared.set(prim, mesh);
-      mesh.removePrimitive(prim);
+    if (keep.has(prim.getMaterial()?.getName() ?? '')) continue;
+    for (let pass = 0; pass < 2; pass += 1) {
+      simplifyPrimitive(prim, { simplifier: MeshoptSimplifier, ratio, error: 0.005 });
     }
   }
 }
-await doc.transform(weld());
-for (let pass = 0; pass < 2; pass += 1) {
-  await doc.transform(simplify({ simplifier: MeshoptSimplifier, ratio, error: 0.005 }));
-}
-for (const [prim, mesh] of spared) mesh.addPrimitive(prim);
 
 // Written uncompressed: the finish Draco-encodes it, and an import that arrived
 // compressed would otherwise ask for an encoder here that it does not need.

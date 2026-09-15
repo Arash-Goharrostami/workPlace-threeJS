@@ -231,6 +231,6 @@ function link(href, label) {
 
 function tagRow(tags) {
   const row = el('div', 'tag-row');
-  for (const tag of tags) row.append(el('span', 'tag', tag));
+  for (const tag of tags) row.append(el('span', 'tag', tag.name ?? tag));
   return row;
 }

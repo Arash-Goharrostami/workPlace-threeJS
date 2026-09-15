@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { loadGLB } from './gltfLoader.js';
+import { darkenScene } from './darkenScene.js';
+import { materialsOf } from './materials.js';
 
 /**
  * The two Apple Pro Display XDRs: the main one on the monitor riser, and a second
@@ -21,17 +23,38 @@ import { loadGLB } from './gltfLoader.js';
  */
 
 /**
- * `npm run shrink proDisplayXdr 512 85 0.35` took it from 4.65 MB to 895 KB.
+ * `npm run shrink:parts -- proDisplayXdr --keep <the twelve other materials> --ratio 0.35
+ * 512 85 --coarse` took it from 4.65 MB to 565 KB (a whole-model `shrink … 0.35` had
+ * stopped at 895 KB). A 0.06 pass gave 494 KB, but the lattice read too coarse.
  *
  * Its geometry arrived Draco-compressed already, so the usual compression step had
  * nothing left to take and the saving had to come from elsewhere: the eleven maps were
  * PNGs — two of them 470 KB and 384 KB at only 512x512 — which re-encode to JPEG for a
- * tenth of that, and the mesh was then decimated from 253k triangles to 90k.
+ * tenth of that. The maps stay at 512, since one of them is the screen picture. Of the
+ * 253k triangles, 224k were the lattice on the display's back — two materials,
+ * `nssRtVtXVzpjuEl` and `KDNlYFMSPLuuFmB` — facing the wall; those alone are decimated,
+ * to 27k, and the bezel, stand, mount and recess keep every triangle the import had.
+ * 57k in all.
  *
  * The `panel` and `xdr_mount` nodes `PANEL` and `MOUNT` look up by name survive all of
  * it, as does the mount split that `scripts/split-display-mount.py` produced.
  */
 const MODEL_URL = 'models/proDisplayXdr.glb';
+
+/**
+ * The placeholder shown while that downloads: the same import with its back lattice
+ * dropped and everything else coarsened, 149 KB against 565.
+ *
+ *     npm run shrink:parts -- proDisplayXdr --out proDisplayXdrLite \
+ *       --drop nssRtVtXVzpjuEl,KDNlYFMSPLuuFmB --ratio 0.3 256 75 --coarse
+ *
+ * The holes on the back are a cut-out texture on a flat plate (`WMVfKEaOnnOqrKt`, MASK);
+ * the two dropped materials were the 3D lattice sitting inside them. With those gone,
+ * the plate is drawn opaque (`solidify` below) so the back reads as one smooth panel
+ * instead of a grid of holes onto the screen's inside. Same nodes, same outer box —
+ * whatever measures the display against the riser or hangs off it sees no difference.
+ */
+const LITE_URL = 'models/proDisplayXdrLite.glb';
 
 /** Metres (the model's units) to this scene's centimetres. */
 const SCALE = 100;
@@ -99,18 +122,24 @@ function placeSideDisplay(display) {
   display.updateMatrixWorld(true);
 }
 
-/** Loads one display, scales it to the scene and repairs its stand's shading. */
+/**
+ * Loads one display and scales it to the scene — the lite first, so the caller has a
+ * display of the right size at once; the full model is fetched behind it and swapped in
+ * by `upgrade()` when it lands.
+ *
+ * What comes back is a wrapper group, not the GLB's own scene: the name, scale and
+ * position live on it, so the swap underneath changes nothing anyone else holds — the
+ * ScreenBar, the cables and the résumé anchors all find `Pro_Display_XDR` by name.
+ */
 async function loadDisplay(parent, name) {
-  const gltf = await loadGLB(MODEL_URL);
+  const lite = (await loadGLB(LITE_URL)).scene;
+  prepare(lite);
+  solidify(lite);
 
-  const display = gltf.scene;
+  const display = new THREE.Group();
   display.name = name;
   display.scale.setScalar(SCALE);
-  display.traverse((node) => {
-    if (!node.isMesh) return;
-    node.castShadow = true;
-    node.receiveShadow = true;
-  });
+  display.add(lite);
 
   // Parented before measuring: the model root carries an offset, so a box taken
   // while the display is still detached would be in the wrong frame.
@@ -118,7 +147,62 @@ async function loadDisplay(parent, name) {
   display.position.set(0, 0, 0);
   display.updateMatrixWorld(true);
 
+  loadGLB(MODEL_URL)
+    .then((gltf) => upgrade(display, lite, gltf.scene))
+    .catch((error) => console.warn(`[display] full model failed, keeping the lite:`, error));
+
   return display;
+}
+
+/** Shadow flags every mesh of a display carries, lite or full. */
+function prepare(root) {
+  root.traverse((node) => {
+    if (!node.isMesh) return;
+    node.castShadow = true;
+    node.receiveShadow = true;
+  });
+}
+
+/**
+ * Draws the lite's cut-out materials solid. Its back plate carries the holes as an
+ * alpha mask, and with the lattice behind them gone they would open straight onto the
+ * inside of the shell.
+ */
+function solidify(root) {
+  root.traverse((node) => {
+    if (!node.isMesh) return;
+    for (const mat of materialsOf(node)) {
+      if (!mat.alphaTest) continue;
+      mat.alphaTest = 0;
+      mat.transparent = false;
+      mat.needsUpdate = true;
+    }
+  });
+}
+
+/**
+ * Puts the full model where the lite stands and takes the lite away.
+ *
+ * Anything done to the lite's nodes since it loaded — the side display's `panel` has
+ * been rolled portrait — is carried across by name: both files come from the same
+ * import, so every node in one has its namesake in the other. The tint is applied here
+ * too, since the room-wide `darkenScene()` may already have run; it marks what it has
+ * touched, so running it on the full display is safe either way round.
+ */
+function upgrade(display, lite, full) {
+  prepare(full);
+  full.traverse((node) => {
+    const twin = node.name && lite.getObjectByName(node.name);
+    if (!twin) return;
+    node.position.copy(twin.position);
+    node.quaternion.copy(twin.quaternion);
+    node.scale.copy(twin.scale);
+  });
+  darkenScene(full);
+
+  display.remove(lite);
+  display.add(full);
+  display.updateMatrixWorld(true);
 }
 
 /** Sits the display's foot on the riser's top face, at MAIN_DISPLAY_ANCHOR. */

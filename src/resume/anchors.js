@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { screenFace } from './screen.js';
+import { NARROW_WINDOW } from './notesApp.js';
 
 /**
  * Which prop stands in for which section, and how the camera looks at it.
@@ -24,7 +25,12 @@ import { screenFace } from './screen.js';
  * | `fit`      | `'screen'` frames the prop's lit panel, `'face'` an upright flat prop, `'flat'` one lying on the desk |
  * | `dir`      | optional world-space direction from the prop to the camera       |
  * | `lift`     | optional extra camera height, in units of the prop's own height  |
+ * | `narrowWidth` | optional: on a narrow screen, the share of the panel's width to frame — for a window drawn smaller than its screen there |
+ * | `narrowDistance` | optional: the `distance` used instead on a narrow screen           |
  */
+
+/** The breakpoint the screens change their layout on; the framing follows it. */
+const NARROW = window.matchMedia('(max-width: 760px)');
 const ANCHORS = {
   skills: {
     prop: 'MacBook_Pro_16',
@@ -38,6 +44,8 @@ const ANCHORS = {
     // Looser than the portrait display's: the lid is a wide panel read at an angle, so
     // the fitted distance alone put its corners past the edges of the viewport.
     distance: 1.5,
+    // On a phone the fit is width-bound and that margin leaves the lid small: closer.
+    narrowDistance: 1.05,
     lift: 0,
   },
   experience: {
@@ -50,6 +58,9 @@ const ANCHORS = {
     fit: 'screen',
     distance: 1.12,
     lift: 0,
+    // On a phone the Notes window stands in the middle of the display at a fraction of
+    // its width (see `notesApp.js`), and it is the window that is framed, not the panel.
+    narrowWidth: NARROW_WINDOW,
   },
   resume: {
     // The paper tablet on the desk *is* the CV — one A4 sheet drawn from the same copy
@@ -213,6 +224,9 @@ export function frameAnchor(object, spec, roomCenter, camera) {
         : spec.fit === 'flat'
           ? flatFace(size)
           : null;
+  // A window drawn narrower than its screen on a phone is what is read there, so it is
+  // what is fitted. It stands centred, so the centre holds.
+  if (face && spec.narrowWidth && NARROW.matches) face.width *= spec.narrowWidth;
   // Inward from the prop toward the middle of the room: the only side of a prop
   // standing against a wall that the camera can actually get to. Taken the other way
   // round it put the camera through the back wall for everything on the desk, which is
@@ -241,9 +255,11 @@ export function frameAnchor(object, spec, roomCenter, camera) {
   const fitWidth = face
     ? face.width / 2 / (Math.tan(fov / 2) * aspect)
     : radius / Math.sin(Math.atan(Math.tan(fov / 2) * aspect));
+  const margin =
+    NARROW.matches && spec.narrowDistance != null ? spec.narrowDistance : spec.distance ?? 1;
   const distance = Math.max(
     MIN_DISTANCE,
-    Math.max(fitHeight, fitWidth) * (spec.fit === 'screen' ? 1 : FRAME_MARGIN) * (spec.distance ?? 1)
+    Math.max(fitHeight, fitWidth) * (spec.fit === 'screen' ? 1 : FRAME_MARGIN) * margin
   );
 
   const tgt = face?.centre ? face.centre.clone() : center;
@@ -251,6 +267,19 @@ export function frameAnchor(object, spec, roomCenter, camera) {
   cam.y += size.y * (spec.lift ?? 0);
 
   return { object, label: spec.label, view: spec.view, cam, tgt };
+}
+
+/**
+ * Re-fits every anchor in place — same objects, new `cam`/`tgt` — for when the framing
+ * has to change after load: the fit divides by the camera's aspect and honours
+ * `narrowWidth`, and both turn on the breakpoint. In place, so every reference the
+ * resume holds to an anchor stays good.
+ */
+export function reframeAnchors(anchors, model, camera) {
+  const roomCenter = roomCenterOf(model);
+  for (const [key, anchor] of Object.entries(anchors)) {
+    Object.assign(anchor, frameAnchor(anchor.object, ANCHORS[key], roomCenter, camera));
+  }
 }
 
 /**

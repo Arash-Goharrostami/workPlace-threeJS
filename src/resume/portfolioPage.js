@@ -181,7 +181,7 @@ function stack(ctx, x, y, width) {
 
     ctx.fillStyle = INK;
     ctx.font = `400 ${T.body}px ${FONT}`;
-    y = paragraph(ctx, x + indent, y, width - indent, group.tags.join(', '), T.body);
+    y = paragraph(ctx, x + indent, y, width - indent, group.tags.map((tag) => tag.name ?? tag).join(', '), T.body);
   }
   return y + T.body * 0.6;
 }
@@ -214,7 +214,7 @@ function education(ctx, x, y, width) {
     ctx.fillText(label, x, y);
     ctx.fillStyle = INK;
     ctx.font = `400 ${T.small}px ${FONT}`;
-    ctx.fillText(group.tags.join(', '), x + Math.max(ctx.measureText(label).width, 150), y);
+    ctx.fillText(group.tags.map((tag) => tag.name ?? tag).join(', '), x + Math.max(ctx.measureText(label).width, 150), y);
     y += T.small * T.lead;
   }
   return y;

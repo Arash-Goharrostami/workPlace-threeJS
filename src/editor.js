@@ -267,19 +267,26 @@ const FIXED_HIT = Symbol('fixed');
 
 /**
  * The thing the code names and places: the piece directly under the room model,
- * walking up from whichever mesh the ray actually hit. The fixed set is checked
+ * walking up from whichever mesh the ray actually hit — or, for a prop flagged
+ * `editParts`, the piece directly under *that*. The fixed set is checked
  * against that piece alone, not against every node on the way up — the imported props
  * carry their own converted hierarchies, and one of those (the Mac Pro's) has a node
  * called `scene` inside it, which used to make the whole tower unpickable.
  */
 function propOf(mesh, model) {
   let prop = mesh;
+  let part = null;
 
   for (let node = mesh; node && node !== model; node = node.parent) {
+    part = prop;
     prop = node;
   }
 
   if (FIXED.has(prop.name)) return FIXED_HIT;
+  // A prop that is dressed by its parts — the wall frames, which the resume needs as
+  // one composition but which are hung one frame at a time — hands over the child on
+  // the way up instead of itself.
+  if (prop.userData?.editParts && part && part !== prop) return part;
   return prop;
 }
 
@@ -393,8 +400,13 @@ function buildReadout({ onFocus, onReset }) {
   };
 }
 
-/** Clipboard of last resort: a throwaway textarea and the pre-promise copy command. */
-function copyViaSelection(text) {
+/**
+ * Clipboard of last resort: a throwaway textarea and the pre-promise copy command. The
+ * async clipboard needs a secure context and a focused document, and a scene served over
+ * plain http on the LAN has neither; this path has no such rules. Shared with the debug
+ * panel's Copy view.
+ */
+export function copyViaSelection(text) {
   const field = document.createElement('textarea');
   field.value = text;
   field.style.cssText = 'position:fixed;opacity:0;pointer-events:none';

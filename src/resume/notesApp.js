@@ -1,5 +1,6 @@
 import { blocks, INK, INK_DIM, INK_FAINT, ACCENT, LINE, FONT, SCALE } from './screen.js';
 import { menuBarHeight, drawMenuBar, startClock } from '../desktop.js';
+import { FLIGHT_MS, RETURN_MS } from './flight.js';
 
 /**
  * A section drawn as **Notes.app** instead of as one long page: a sidebar down the left
@@ -58,6 +59,28 @@ const HOVERED = 'rgba(255, 255, 255, 0.045)';
 const LIGHTS = ['#ff5f57', '#febc2e', '#28c840'];
 
 /**
+ * On a phone the window leaves full-screen. The panel is a wide 16:9 that a portrait
+ * viewport fits by width, which left the whole window a thin strip; so on a narrow
+ * screen it is drawn instead as a portrait window standing in the middle of the display
+ * — as tall as the panel allows and this share of its width — with no sidebar and the
+ * whole section flowing down it as one column. `anchors.js` frames that window rather
+ * than the panel (see `narrowWidth` there), so on a phone it fills the screen.
+ */
+export const NARROW_WINDOW = 0.36;
+
+/** The same breakpoint `screen.js` sets its type by. */
+const NARROW = window.matchMedia('(max-width: 760px)');
+
+/** How much larger the phone column's type is set, as a share of its (narrower) width. */
+const NARROW_TYPE = 1.6;
+
+/** The one pane the phone layout lays out: the whole section, under this key. */
+const ALL = '*all';
+
+/** The flight's own ease, so the window shrinks in step with the camera coming in. */
+const ease = (t) => t * t * t * (t * (t * 6 - 15) + 10);
+
+/**
  * Builds the window over `view`, the canvas the section's plane already shows.
  *
  * Returns the handful of things `screen.js` drives it with. Nothing here touches three.js
@@ -78,6 +101,26 @@ export function createNotesApp(section, view) {
   /** Also filled by `render()`, and read by `scroll()` — each column's own geometry. */
   let pane = { x: 0, y: 0, w: 0, h: 0, span: 0 };
   let side = { x: 0, y: 0, w: 0, h: 0, span: 0 };
+  /**
+   * The phone layout — see `NARROW_WINDOW`. Switched by `index.js` when the section is
+   * opened on a narrow screen and back when it closes, so the display shows the
+   * full-screen window while the room is browsed and shrinks it the moment it is read.
+   */
+  let compact = false;
+  /**
+   * The change between the two, in flight: from and to are the layout's progress (0 is
+   * full-screen, 1 the phone window), timed off the flight so the window shrinks as
+   * the camera comes in (`FLIGHT_MS`) and grows back as it leaves (`RETURN_MS`). Null
+   * when settled.
+   */
+  let anim = null;
+
+  /** How far toward the phone window the layout is right now, eased: 0 to 1. */
+  const progress = () => {
+    if (!anim) return compact ? 1 : 0;
+    const t = Math.min(1, (performance.now() - anim.start) / anim.duration);
+    return anim.from + (anim.to - anim.from) * ease(t);
+  };
 
   const app = {
     notes,
@@ -109,27 +152,42 @@ export function createNotesApp(section, view) {
       const bottom = H * (1 - INSET_BOTTOM);
       const height = bottom - top;
       const barH = height * BAR;
-      const sideW = W * SIDEBAR;
+      // Full-bleed with a sidebar, or — on a phone — a portrait window in the middle of
+      // the display with none, or anywhere between the two while the change is in
+      // flight. See `NARROW_WINDOW`.
+      const e = progress();
+      const narrow = e > 0;
+      const winW = W - (W - W * NARROW_WINDOW) * e;
+      const left = (W - winW) / 2;
+      const sideW = W * SIDEBAR * (1 - e);
 
       ctx.save();
       ctx.beginPath();
-      ctx.roundRect(0, top, W, height, height * 0.028);
+      ctx.roundRect(left, top, winW, height, height * 0.028);
       ctx.clip();
 
       ctx.fillStyle = SIDEBAR_BG;
-      ctx.fillRect(0, top, sideW, height);
+      ctx.fillRect(left, top, sideW, height);
       ctx.fillStyle = PANE_BG;
-      ctx.fillRect(sideW, top, W - sideW, height);
+      ctx.fillRect(left + sideW, top, winW - sideW, height);
 
-      pane = { x: sideW, y: top + barH, w: W - sideW, h: height - barH, span: 0 };
-      side = { x: 0, y: top + barH, w: sideW, h: height - barH, span: 0 };
-      drawPane(ctx);
-      drawSidebar(ctx);
-      drawTitleBar(ctx, W, top, barH, sideW);
+      pane = { x: left + sideW, y: top + barH, w: winW - sideW, h: height - barH, span: 0 };
+      side = { x: left, y: top + barH, w: sideW, h: height - barH, span: 0 };
+      drawPane(ctx, e);
+      // The list is drawn all the way down — it narrows with its column — but only a
+      // settled full-screen window has rows to click.
+      if (sideW > 0) drawSidebar(ctx);
+      if (narrow) rows = [];
+      drawTitleBar(ctx, left, winW, top, barH, sideW, e);
 
-      // The seam between the two columns, drawn last so neither fill covers it.
-      ctx.fillStyle = LINE;
-      ctx.fillRect(sideW, top, Math.max(1, W * 0.0006), height);
+      // The seam between the two columns, drawn last so neither fill covers it; it goes
+      // with the sidebar.
+      if (sideW > 0) {
+        ctx.fillStyle = LINE;
+        ctx.globalAlpha = 1 - e;
+        ctx.fillRect(left + sideW, top, Math.max(1, W * 0.0006), height);
+        ctx.globalAlpha = 1;
+      }
       ctx.restore();
 
       // The menu bar last, on this same canvas rather than on a plane of its own: that
@@ -148,7 +206,7 @@ export function createNotesApp(section, view) {
      * most likely reaching for.
      */
     scroll(delta, uv) {
-      const overSidebar = uv ? uv.x * view.width < side.w : false;
+      const overSidebar = uv && side.w ? uv.x * view.width < side.x + side.w : false;
       const span = overSidebar ? side.span : pane.span;
       if (!span) return false;
 
@@ -158,6 +216,35 @@ export function createNotesApp(section, view) {
       else scroll = now;
       if (now !== was) app.render();
       return true;
+    },
+
+    /**
+     * Full-screen with a sidebar, or the phone's portrait window — reached over the
+     * matching flight's duration, from wherever the layout is now. Re-lays the panes.
+     */
+    setCompact(on) {
+      if (on === compact) return;
+      anim = {
+        from: progress(),
+        to: on ? 1 : 0,
+        start: performance.now(),
+        duration: on ? FLIGHT_MS : RETURN_MS,
+      };
+      compact = on;
+      laid.clear();
+      scroll = 0;
+      sideScroll = 0;
+
+      // Frame by frame until it lands, through `repaint` so the texture is flagged too.
+      const started = anim;
+      const tick = () => {
+        if (anim !== started) return;
+        const done = performance.now() - anim.start >= anim.duration;
+        if (done) anim = null;
+        app.repaint();
+        if (!done) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
     },
 
     /** Back to the first note, at its top — where opening the section should land. */
@@ -175,7 +262,7 @@ export function createNotesApp(section, view) {
      * `uv` is three.js's: origin bottom-left, so v is flipped to canvas pixels.
      */
     hitTest(uv) {
-      if (!uv) return null;
+      if (!uv || !side.w) return null;
       const x = uv.x * view.width;
       const y = (1 - uv.y) * view.height;
       // Inside the column first: a row scrolled up under the title bar is still in
@@ -298,16 +385,29 @@ export function createNotesApp(section, view) {
     ctx.restore();
   }
 
-  /** The open note, blitted into the pane from its own full-length layout. */
-  function drawPane(ctx) {
-    const note = notes.find((n) => n.id === selected);
+  /**
+   * The open note, blitted into the pane from its own full-length layout.
+   *
+   * Laid out at the width the pane will have once the layout settles and drawn scaled
+   * to the width it has now — so while the window is changing shape the text zooms with
+   * it rather than re-flowing every frame, and once settled the scale is exactly one.
+   */
+  function drawPane(ctx, e) {
+    // The phone column is the whole section, headings and all; the desktop pane is the
+    // note the sidebar has selected.
+    const note = compact
+      ? { id: ALL, blocks: section.blocks }
+      : notes.find((n) => n.id === selected);
     if (!note) return;
 
-    const page = layout(note);
+    const W = view.width;
+    const settledW = compact ? W * NARROW_WINDOW : W - W * SIDEBAR;
+    const page = layout(note, settledW);
+    const scale = pane.w / page.width;
     // Floored, because the pane's height is fractional and the canvas's is not: a note
     // that fits exactly leaves a span of half a pixel, and `scroll()` would then report
     // the note as scrollable for ever and swallow a wheel that belongs to the camera.
-    const span = Math.max(0, Math.floor(page.height - pane.h));
+    const span = anim ? 0 : Math.max(0, Math.floor(page.height * scale - pane.h));
     pane.span = span;
     laid.get(note.id).span = span;
     const at = Math.min(scroll, span);
@@ -316,9 +416,10 @@ export function createNotesApp(section, view) {
     ctx.beginPath();
     ctx.rect(pane.x, pane.y, pane.w, pane.h);
     ctx.clip();
-    ctx.drawImage(page, 0, at, pane.w, pane.h, pane.x, pane.y, pane.w, pane.h);
+    const srcH = pane.h / scale;
+    ctx.drawImage(page, 0, at / scale, page.width, srcH, pane.x, pane.y, pane.w, pane.h);
 
-    rail(ctx, pane.x + pane.w, pane.y, pane.h, span, at, page.height, pane.w);
+    if (!anim) rail(ctx, pane.x + pane.w, pane.y, pane.h, span, at, page.height, pane.w);
     ctx.restore();
   }
 
@@ -328,14 +429,15 @@ export function createNotesApp(section, view) {
    * Measured then drawn, like `draw()` in `screen.js` and for the same reason: the
    * height has to be known before the canvas exists, and sizing a canvas wipes it.
    */
-  function layout(note) {
-    const W = Math.floor(pane.w);
+  function layout(note, width) {
+    const W = Math.floor(width);
     const cached = laid.get(note.id);
     if (cached && cached.width === W) return cached;
 
     // Type is sized off the pane, not off the panel: the column is under three quarters
-    // of the screen, and copy set for the full width lands in it too large.
-    const u = W * (section.screenScale ?? 1) * 1.25;
+    // of the screen, and copy set for the full width lands in it too large. The phone
+    // column is narrower still and read filling the viewport, so it gets a bigger share.
+    const u = W * (section.screenScale ?? 1) * (note.id === ALL ? NARROW_TYPE : 1.25);
     const pad = u * SCALE.pad;
 
     const measure = document.createElement('canvas').getContext('2d');
@@ -360,24 +462,24 @@ export function createNotesApp(section, view) {
   }
 
   /** The window's title bar: traffic lights, what is open, and the toolbar glyphs. */
-  function drawTitleBar(ctx, W, top, h, sideW) {
+  function drawTitleBar(ctx, left, W, top, h, sideW, e = 0) {
     ctx.fillStyle = CHROME;
-    ctx.fillRect(0, top, W, h);
+    ctx.fillRect(left, top, W, h);
     ctx.fillStyle = LINE;
-    ctx.fillRect(0, top + h - Math.max(1, h * 0.014), W, Math.max(1, h * 0.014));
+    ctx.fillRect(left, top + h - Math.max(1, h * 0.014), W, Math.max(1, h * 0.014));
 
     const mid = top + h / 2;
     const r = h * 0.115;
     LIGHTS.forEach((colour, i) => {
       ctx.fillStyle = colour;
       ctx.beginPath();
-      ctx.arc(h * 0.52 + i * r * 3.1, mid, r, 0, Math.PI * 2);
+      ctx.arc(left + h * 0.52 + i * r * 3.1, mid, r, 0, Math.PI * 2);
       ctx.fill();
     });
 
     // What the sidebar is showing, over the sidebar — the count included, as Notes has
     // it, because it is the one number that says how much there is to read.
-    const x = h * 2.6;
+    const x = left + h * 2.6;
     ctx.textBaseline = 'middle';
     ctx.font = `600 ${h * 0.3}px ${FONT}`;
     ctx.fillStyle = INK;
@@ -388,13 +490,26 @@ export function createNotesApp(section, view) {
     ctx.textBaseline = 'top';
 
     // The toolbar, over the pane: the format and checklist marks on the left of it, the
-    // share mark out at the right end.
-    glyphAa(ctx, sideW + h * 0.7, mid, h * 0.3);
-    glyphList(ctx, sideW + h * 1.6, mid, h * 0.3);
-    glyphShare(ctx, W - h * 0.9, mid, h * 0.34);
+    // share mark out at the right end. The phone window has no room for the first two,
+    // and they fade as it becomes one.
+    if (sideW > 0) {
+      ctx.globalAlpha = 1 - e;
+      glyphAa(ctx, left + sideW + h * 0.7, mid, h * 0.3);
+      glyphList(ctx, left + sideW + h * 1.6, mid, h * 0.3);
+      ctx.globalAlpha = 1;
+    }
+    glyphShare(ctx, left + W - h * 0.9, mid, h * 0.34);
   }
 
   app.render();
+  // Crossing the breakpoint changes the window's shape and the column's width, and a
+  // pane is laid out once at a width — so every kept one goes, and the next draw
+  // re-lays it. `screen.js` repaints the screen itself on the same change.
+  NARROW.addEventListener('change', () => {
+    laid.clear();
+    scroll = 0;
+    sideScroll = 0;
+  });
   // The bar's clock. `repaint()` is the hook `screen.js` fills in with the one thing
   // this module has no business knowing about — flagging the texture — and stays a
   // no-op until it does.

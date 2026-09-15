@@ -27,7 +27,18 @@ const CONCRETE_TEXTURE_SPAN = 280;
  * than in `darkenScene.js` because the material opts out of that pass: with a map it
  * would otherwise take the much harder tint meant for the desk's laminate.
  */
-const WALL_TINT = 0x454f66;
+const WALL_TINT = 0x56627e;
+
+/**
+ * The same tint, lifted for the side wall. The key light sits outside the room at
+ * +x/+z: it falls on the back wall face-on and never reaches the side wall, whose face
+ * points -x, so with one colour the side wall reads a step darker. Brightening its
+ * tint makes the two walls match without moving the key and every shadow with it.
+ */
+const SIDE_WALL_TINT = 0x7a8aab;
+
+/** The wall the key light cannot reach. */
+const SIDE_WALL = 'wall2';
 
 const loader = new THREE.TextureLoader();
 
@@ -41,14 +52,18 @@ export function applyWallMaterials(model) {
   if (!walls) return null;
 
   const concrete = makeConcreteMaterial();
+  const sideConcrete = concrete.clone();
+  sideConcrete.name = 'room_concrete_side';
+  sideConcrete.color.setHex(SIDE_WALL_TINT);
 
   for (const child of walls.children) {
     if (NON_WALLS.has(child.name)) continue;
+    const material = child.name === SIDE_WALL ? sideConcrete : concrete;
     child.updateMatrixWorld(true);
     child.traverse((node) => {
       if (!node.isMesh) return;
       addWallUVs(node);
-      node.material = concrete;
+      node.material = material;
     });
   }
 

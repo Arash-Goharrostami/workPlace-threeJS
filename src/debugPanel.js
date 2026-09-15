@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import Stats from 'three/addons/libs/stats.module.js';
 import { materialsOf } from './materials.js';
 import { HOME_VIEW } from './homeView.js';
+import { copyViaSelection } from './editor.js';
 
 /**
  * The room's shell, taken out together by the "Hide walls" box so the desk can be
@@ -77,7 +78,7 @@ export function setupDebugPanel({ scene, camera, controls, environment }) {
   bind('opt-rotate', (on) => { controls.autoRotate = on; });
   bind('opt-stats', (on) => { stats.dom.hidden = !on; });
 
-  wireCopyView({ camera, controls });
+  wireCopyView({ camera, controls, environment });
 
   return stats;
 }
@@ -89,34 +90,60 @@ export function setupDebugPanel({ scene, camera, controls, environment }) {
  * `homeView.js` writes them in, and copies the whole `HOME_VIEW` block ready to paste
  * over the one in that file. `zoom` and `height` are recovered by dividing out what
  * the auto-fit worked out, so they stay meaningful if the room's bounds ever change.
+ *
+ * The block is also printed under the button, selectable, so it can always be copied by
+ * hand: the async clipboard refuses on plain http and when the page is not focused, and
+ * `copyViaSelection` is the fallback for that — the console only the one after it.
  */
-function wireCopyView({ camera, controls }) {
+function wireCopyView({ camera, controls, environment }) {
   const button = document.getElementById('opt-copy-view');
+  const readout = document.getElementById('view-readout');
   if (!button) return;
 
   button.addEventListener('click', async () => {
-    const text = describeView(camera, controls);
+    // The fit's own box — the camera is not in the scene, so it has no parent to
+    // measure, and the scene's box would take in the oversized shadow floor.
+    const box = environment.bounds;
+    if (!box) {
+      flash(button, 'Not yet');
+      return;
+    }
+
+    let text;
+    try {
+      text = describeView(camera, controls, box);
+    } catch (error) {
+      // A silent button is the one thing this must not be.
+      console.warn('[copy view] failed:', error);
+      flash(button, 'Failed');
+      return;
+    }
+    if (readout) {
+      readout.textContent = text;
+      readout.hidden = false;
+    }
     try {
       await navigator.clipboard.writeText(text);
       flash(button, 'Copied');
     } catch {
-      // Clipboard access needs a secure context; the console is the fallback.
-      console.info(text);
-      flash(button, 'In console');
+      if (copyViaSelection(text)) {
+        flash(button, 'Copied');
+      } else {
+        console.info(text);
+        flash(button, 'In console');
+      }
     }
   });
 }
 
 /** The current view, as the `HOME_VIEW` literal that would reproduce it. */
-function describeView(camera, controls) {
+function describeView(camera, controls, box) {
   const distance = camera.position.distanceTo(controls.target);
   const azimuth = THREE.MathUtils.radToDeg(controls.getAzimuthalAngle());
   const polar = THREE.MathUtils.radToDeg(controls.getPolarAngle());
 
   // The fitted distance this view is a multiple of — the same formula `homeView.js`
   // uses, so dividing by it recovers the `zoom` that would put the camera back here.
-  const scene = controls.object.parent;
-  const box = new THREE.Box3().setFromObject(scene);
   const size = box.getSize(new THREE.Vector3());
   const radius = Math.max(size.length() / 2, 1e-3);
   const fov = THREE.MathUtils.degToRad(camera.fov);

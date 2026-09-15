@@ -28,11 +28,62 @@ export const HOME_VIEW = {
 };
 
 /**
+ * Where the opening click flies to: eye level at the desk, straight on. The room
+ * loads at `HOME_VIEW` behind a "click anywhere to begin" — that wide shot is only the
+ * backdrop — and the click sends the camera here (see `main.js`), which is then the
+ * home that "back" and a closed section return to. Same four numbers as `HOME_VIEW`,
+ * retuned the same way — orbit there with `?debug` and press Copy view.
+ */
+export const INTRO_VIEW = {
+  azimuth: -8.27,
+  polar: 82.76,
+  zoom: 0.19,
+  height: 0.5,
+};
+
+/**
+ * The same shot for a phone held upright: pulled back and lifted a little, so the whole
+ * desk and everything on it fits a tall, narrow frame that the landscape framing crops.
+ */
+export const INTRO_VIEW_NARROW = {
+  azimuth: -4.2,
+  polar: 73.04,
+  zoom: 0.29,
+  height: 0.5,
+};
+
+/** The breakpoint the resume's own layout turns on (its sidebar becomes a sheet). */
+export const NARROW = window.matchMedia('(max-width: 760px)');
+
+/** The desk view for the screen at hand — read when it is needed, not at load. */
+export function introView() {
+  return NARROW.matches ? INTRO_VIEW_NARROW : INTRO_VIEW;
+}
+
+/**
  * Places the camera at `HOME_VIEW` around `box`, and points the orbit controls at it.
  * Returns the distance it settled on, which is what the controls' zoom limits are
  * sized from.
  */
 export function applyHomeView(box, camera, controls, view = HOME_VIEW) {
+  const { position, target, distance, radius } = placeView(box, camera, view);
+
+  camera.position.copy(position);
+  camera.near = distance / 100;
+  camera.far = distance * 100;
+  camera.updateProjectionMatrix();
+
+  controls.target.copy(target);
+  controls.update();
+
+  return { distance, radius };
+}
+
+/**
+ * Works out where `view` puts the camera around `box` without moving it — what a flight
+ * needs as its destination. `radius` is the box's, `distance` the camera's from `target`.
+ */
+export function placeView(box, camera, view) {
   const size = box.getSize(new THREE.Vector3());
   const centre = box.getCenter(new THREE.Vector3());
   const radius = Math.max(size.length() / 2, 1e-3);
@@ -55,13 +106,5 @@ export function applyHomeView(box, camera, controls, view = HOME_VIEW) {
     THREE.MathUtils.degToRad(view.azimuth)
   );
 
-  camera.position.copy(target).add(offset);
-  camera.near = distance / 100;
-  camera.far = distance * 100;
-  camera.updateProjectionMatrix();
-
-  controls.target.copy(target);
-  controls.update();
-
-  return { distance, radius };
+  return { position: target.clone().add(offset), target, distance, radius };
 }

@@ -22,6 +22,9 @@ import { addMainsCable } from './mainsCable.js';
 
 const NAME = 'Printer_power';
 
+/** Grey, not the black the other leads share — it reads against the printer's shell. */
+const COLOR = 0x8a8a8e;
+
 /**
  * The run in world centimetres, plug end first, dressed by hand in edit mode and copied
  * out of its readout. Out of the near strip beside the Mac Pro, across the tiles under
@@ -75,5 +78,6 @@ export async function addPrinterCable(parent) {
     name: NAME,
     route: ROUTE,
     ends: [PLUG_TRANSFORM, HEAD_TRANSFORM],
+    color: COLOR,
   });
 }

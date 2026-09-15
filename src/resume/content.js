@@ -218,8 +218,16 @@ export const SECTIONS = {
   },
 
   skills: {
-    // Read off the MacBook's own screen rather than the sidebar — see `screen.js`.
+    // Read off the MacBook's own screen rather than the sidebar — see `screen.js` —
+    // and drawn there as a Shortcuts window: groups down the sidebar, the selected
+    // group's skills as tiles (`stackApp.js`). The `intro` below is for the printed
+    // CV and the sidebar; the window shows the groups and the footnote.
     screen: true,
+    app: 'shortcuts',
+    // Right to the lit panel's edge — the lid's glass ends there — with the corners
+    // rounded like the Mac's own.
+    screenInset: 0,
+    screenRadius: 0.028,
     // The lid is a small panel read from a stride back — the portrait display's type
     // sizes land on it far too big. See `flow()` in `screen.js`.
     screenScale: 0.46,
@@ -230,31 +238,304 @@ export const SECTIONS = {
         kind: 'intro',
         // One line, not a paragraph: the laptop's panel is short, and the groups are
         // what the section is for.
-        text: 'Linux and containers underneath, TypeScript across the stack above them.',
+        text: 'Linux and containers underneath, TypeScript across the stack, and three.js and Blender for the room you are in.',
       },
       {
+        // Each group is a card on the lid (`skills()` in `screen.js`): `icon` is the mark
+        // ahead of its title (from `public/skillsIcon/`, like a tag's), `note` the one
+        // line under it.
         kind: 'skills',
         groups: [
           {
             title: 'Systems & DevOps',
-            tags: ['Linux', 'Kubernetes', 'Docker', 'Nginx', 'Apache', 'Bash', 'Git'],
+            // Under the group's tiles in the Shortcuts window (`stackApp.js`).
+            footer: 'Certified LPIC-3 (Linux Professional Institute) · production clusters on Kubernetes since 2021.',
+            icon: 'system-and-devops',
+            note: 'Servers, clusters, the shell',
+            // A tag with an `icon` carries the glyph of that name from `public/skillsIcon/`
+            // on its chip; a plain string is the word alone.
+            tags: [
+              {
+                name: 'Linux',
+                icon: 'linux',
+                desc: 'The operating system under nearly every server — the shell, the filesystem, the services.',
+              },
+              {
+                name: 'Kubernetes',
+                icon: 'kubernetes',
+                desc: 'Container orchestration — schedules, scales and heals services across a cluster.',
+              },
+              {
+                name: 'Docker',
+                icon: 'docker',
+                desc: 'Packages an app and its dependencies into one image that runs the same everywhere.',
+              },
+              {
+                name: 'Nginx',
+                icon: 'nginx',
+                desc: 'Web server and reverse proxy — TLS, static files and routing in front of app servers.',
+              },
+              {
+                name: 'Apache',
+                icon: 'apache',
+                desc: 'The long-standing HTTP server; virtual hosts, modules and .htaccess rules.',
+              },
+              {
+                name: 'Bash',
+                icon: 'bash',
+                desc: 'The Unix shell — scripting, pipes and the glue between tools on a server.',
+              },
+              {
+                name: 'Git',
+                icon: 'git',
+                desc: 'Version control — branches, history and the workflow every team builds on.',
+              },
+            ],
           },
-          { title: 'Backend', tags: ['Node.js', 'Express', 'NestJS', 'Bun'] },
+          {
+            title: '3D & Graphics',
+            // Under the group's tiles in the Shortcuts window (`stackApp.js`).
+            footer: 'This whole room is the sample: modelled in Blender, shipped as Draco-compressed glTF, rendered in three.js.',
+            icon: 'graphics',
+            note: 'This room, and how it was built',
+            tags: [
+              {
+                name: 'three.js',
+                icon: 'three-js',
+                desc: 'A JavaScript library over WebGL for 3D scenes in the browser — this room is one.',
+              },
+              {
+                name: 'WebGL',
+                icon: 'webgl',
+                desc: 'The browser’s GPU API — what three.js draws with, and what runs on every device.',
+              },
+              {
+                name: 'GLSL',
+                icon: 'glsl',
+                desc: 'The shading language — small programs on the GPU that decide how a surface looks.',
+              },
+              {
+                name: 'Blender',
+                icon: 'blender',
+                desc: 'Open-source 3D suite — modelling, materials and baking the props this room is built from.',
+              },
+              {
+                name: 'glTF / Draco',
+                icon: 'glft',
+                desc: 'The web’s 3D file format, with Draco compressing its geometry for faster loads.',
+              },
+              {
+                name: 'Vite',
+                icon: 'vite',
+                desc: 'Build tool and dev server — instant reloads in development, bundled output for production.',
+              },
+            ],
+          },
+          {
+            title: 'Backend',
+            // Under the group's tiles in the Shortcuts window (`stackApp.js`).
+            footer: 'Services in NestJS and Express behind Nginx, on Node.js, Bun and Deno — REST, WebSockets and queues.',
+            icon: 'backend',
+            note: 'Services, APIs, real-time',
+            tags: [
+              {
+                name: 'Node.js',
+                icon: 'nodejs',
+                desc: 'JavaScript on the server — the runtime under most of the backends here.',
+              },
+              {
+                name: 'Deno',
+                icon: 'deno',
+                desc: 'A newer JavaScript runtime — TypeScript built in, secure by default.',
+              },
+              {
+                name: 'Bun',
+                icon: 'bun',
+                desc: 'A fast all-in-one JavaScript runtime, bundler and package manager.',
+              },
+              {
+                name: 'Express',
+                icon: 'express',
+                desc: 'The minimal Node.js web framework — routes, middleware, nothing in the way.',
+              },
+              {
+                name: 'NestJS',
+                icon: 'nestjs',
+                desc: 'A structured Node.js framework — modules, dependency injection, TypeScript first.',
+              },
+              {
+                name: 'npm',
+                icon: 'npm',
+                desc: 'The default package manager for Node.js and the registry behind it.',
+              },
+              {
+                name: 'yarn',
+                icon: 'yarn',
+                desc: 'An alternative package manager — workspaces, deterministic installs.',
+              },
+            ],
+          },
           {
             title: 'Frontend',
-            tags: ['HTML', 'CSS', 'JavaScript', 'TypeScript', 'React', 'Next.js', 'Angular', 'three.js', 'Vite'],
+            // Under the group's tiles in the Shortcuts window (`stackApp.js`).
+            footer: 'Web and admin platforms in React and Next.js, with Angular where the team already had it.',
+            icon: 'frontend',
+            note: 'Web and admin platforms',
+            tags: [
+              {
+                name: 'TypeScript',
+                icon: 'typescript',
+                desc: 'JavaScript with types — catches mistakes before they run, across the whole stack.',
+              },
+              {
+                name: 'JavaScript',
+                icon: 'javascript',
+                desc: 'The language of the browser, and with Node.js of the server too.',
+              },
+              {
+                name: 'React',
+                icon: 'react',
+                desc: 'The UI library — components, state and the ecosystem most web apps are built on.',
+              },
+              {
+                name: 'Next.js',
+                icon: 'nextjs',
+                desc: 'The React framework — server rendering, routing and APIs in one project.',
+              },
+              {
+                name: 'Angular',
+                icon: 'angular',
+                desc: 'Google’s full application framework — TypeScript, DI and RxJS built in.',
+              },
+              {
+                name: 'HTML',
+                icon: 'html',
+                desc: 'The structure of every page — semantics, accessibility and forms.',
+              },
+              {
+                name: 'CSS',
+                icon: 'css',
+                desc: 'How a page looks — layout, motion and responsive design.',
+              },
+            ],
           },
-          { title: 'Application', tags: ['Java', 'Kotlin', 'Swift', 'SwiftUI', 'Dart'] },
+          {
+            title: 'Application',
+            // Under the group's tiles in the Shortcuts window (`stackApp.js`).
+            footer: 'Native iOS in Swift and SwiftUI, Android in Kotlin, and cross-platform in Dart and React Native.',
+            icon: 'application',
+            note: 'Native and cross-platform',
+            tags: [
+              {
+                name: 'Swift',
+                icon: 'swift',
+                desc: 'Apple’s language for iOS and macOS — safe, fast and expressive.',
+              },
+              {
+                name: 'SwiftUI',
+                icon: 'swift-ui',
+                desc: 'Apple’s declarative UI framework — views as a function of state.',
+              },
+              {
+                name: 'Kotlin',
+                icon: 'kotlin',
+                desc: 'The modern language for Android — concise, null-safe, JVM-compatible.',
+              },
+              {
+                name: 'Java',
+                icon: 'java',
+                desc: 'The JVM workhorse — Android before Kotlin, and plenty of backends still.',
+              },
+              {
+                name: 'Dart',
+                icon: 'dart',
+                desc: 'The language behind Flutter — one codebase for iOS, Android and web.',
+              },
+            ],
+          },
           {
             title: 'Databases',
-            tags: ['SQL', 'MySQL', 'PostgreSQL', 'NoSQL', 'MongoDB', 'Mongoose'],
+            // Under the group's tiles in the Shortcuts window (`stackApp.js`).
+            footer: 'PostgreSQL and MySQL for the relational work, MongoDB with Mongoose where the data is documents.',
+            icon: 'databases',
+            note: 'Relational and document stores',
+            tags: [
+              {
+                name: 'PostgreSQL',
+                icon: 'postgresql',
+                desc: 'The relational database of choice — strict, extensible and reliable.',
+              },
+              {
+                name: 'MySQL',
+                icon: 'mysql',
+                desc: 'The widely deployed relational database — fast reads, familiar SQL.',
+              },
+              {
+                name: 'SQL',
+                icon: 'sql',
+                desc: 'The query language — joins, indexes and schemas across every relational store.',
+              },
+              {
+                name: 'MongoDB',
+                icon: 'mongodb',
+                desc: 'Document database — flexible JSON-like records, horizontal scaling.',
+              },
+              {
+                name: 'Mongoose',
+                icon: 'mongoose',
+                desc: 'Schemas and models for MongoDB in Node.js — validation and queries with structure.',
+              },
+              {
+                name: 'NoSQL',
+                icon: 'nosql',
+                desc: 'Non-relational stores — documents, key-value and graphs, chosen by the data’s shape.',
+              },
+            ],
           },
-          { title: 'Languages', tags: ['C', 'C++', 'Assembly', 'Python', 'PHP', 'Laravel'] },
           {
-            title: 'Certifications',
-            tags: ['LPIC-3 — Linux Professional Institute', 'B.Sc. — University Degree'],
+            title: 'Languages',
+            // Under the group's tiles in the Shortcuts window (`stackApp.js`).
+            footer: 'B.Sc. Computer Engineering — C, C++ and Assembly from the degree, Python and PHP from the jobs since.',
+            icon: 'languages',
+            note: 'Down to the metal',
+            tags: [
+              {
+                name: 'C',
+                icon: 'c',
+                desc: 'The systems language — memory, pointers and what every OS is written in.',
+              },
+              {
+                name: 'C++',
+                icon: 'c-plus-plus',
+                desc: 'C with classes and templates — performance-critical code and engines.',
+              },
+              {
+                name: 'Assembly',
+                icon: 'assembly',
+                desc: 'Instructions the CPU runs directly — how a program actually executes.',
+              },
+              {
+                name: 'Python',
+                icon: 'python',
+                desc: 'Scripting, tooling and data — the quick, readable language for getting things done.',
+              },
+              {
+                name: 'PHP',
+                icon: 'php',
+                desc: 'The web’s server-side language — still running most of it.',
+              },
+              {
+                name: 'Laravel',
+                icon: 'laravel',
+                desc: 'The PHP framework — elegant routing, ORM and everything a web app needs.',
+              },
+            ],
           },
         ],
+      },
+      {
+        kind: 'footnote',
+        text: 'Certified LPIC-3 (Linux Professional Institute) · B.Sc. Computer Engineering.',
       },
     ],
   },
@@ -300,6 +581,9 @@ export const SECTIONS = {
     // tablet would otherwise get, and the page is meant to fill the glass.
     font: 'Caveat',
     screenScale: 1.2,
+    // The same size on a phone: the pad is written at a size chosen to fill the glass,
+    // and re-setting it larger there breaks the page. See `NARROW_TYPE` in `screen.js`.
+    narrowType: 1,
     // Lines closer together than the monitors' pages: a pad is written, not typeset.
     leading: 0.72,
     screenInset: 0.012,
