@@ -30,27 +30,36 @@ export const CV_FILENAME = 'Arash-Goharrostami-CV.pdf';
 
 /** The pool the pad's notes are drawn from — one line each, as they would be jotted. */
 const JOTS = [
-  'check nginx keepalive on the edge box',
   'why does the socket count spike at 03:00?',
-  'rotate the staging certs before Friday',
-  'read the k8s HPA docs properly this time',
-  'move the queue consumers to their own pod',
   'p95 is the number that matters, not the mean',
-  'ask about the RabbitMQ prefetch setting',
-  'write the post about the 65% latency cut',
-  'coffee — then the migration',
-  'types first, then the feature',
   'the cache is lying. verify TTLs',
-  'fix the flaky e2e on the login flow',
-  'try Bun for the build script',
+  'types first, then the feature',
   'backup the home server. actually do it',
   'guitar — 20 min, no excuses',
   'idea: draw the desk in three.js',
 ];
 
 /** How many lines land on the pad, and how many of those are crossed off. */
-const JOT_COUNT = 8;
-const JOT_DONE = [2, 3];
+const JOT_COUNT = 3;
+const JOT_DONE = [1, 2];
+
+/**
+ * What has been ticked off at this desk and what is next on it — drawn as boxes on the
+ * pad (`checklist` in `screen.js`), the done ones ticked by hand.
+ */
+const CHECKLIST = [
+  { group: 'done', items: [
+    'API p95 under 200 ms at 1,000 req/s',
+    '10,000 WebSockets open on one node',
+    '1M+ RabbitMQ events a day, none lost',
+    'LPIC-3 — the whole Linux track',
+  ] },
+  { group: 'next', items: [
+    'this room at 60 fps on a mid-range phone',
+    'write up the 65% latency cut',
+    'a fix upstream to NestJS',
+  ] },
+];
 
 /**
  * A different page of notes each visit: the pool shuffled, the first few taken, and two
@@ -92,17 +101,14 @@ export const SECTIONS = {
       {
         kind: 'intro',
         text:
-          'Developer with 9+ years in Linux and server infrastructure, who came to ' +
-          'programming through C, C++ and Assembly and has spent the last 6 years ' +
-          'building with TypeScript — from hardening servers to shipping production ' +
-          'web apps.',
+          'Full-stack developer — TypeScript and Node.js, backend and real-time ' +
+          'systems — with a decade of Linux and server work underneath.',
       },
       {
         kind: 'text',
         paragraphs: [
-          'I started on the systems side, not the application side. For the better part of a decade I have been configuring Linux servers, securing them, and keeping them running — Nginx and Apache in production then and now, and Kubernetes for orchestration as the work moved into containers. Working through the Linux track from the fundamentals up to the professional level is also what taught me to read a system rather than guess at it.',
-          'Programming came out of that. Administering machines led me to C and C++, then down to Assembly to understand what the machine was actually doing, then to Python for the tooling around it. PHP and Laravel were my first real introduction to building for the web.',
-          'Then I found JavaScript, and it took over. Six years later I write nearly everything in TypeScript — the types are what make a codebase survivable in a team and what turn a class of runtime failures into compile-time ones. That is the part of the job I enjoy most: code other people can pick up, and errors that surface before a user ever sees them.',
+          'I came to programming from the systems side: years of building and running Linux servers led to C, C++ and Assembly to understand what the machine was doing, and from there to the web. It left me with a habit of reading a system rather than guessing at it.',
+          'For the last six years that has meant TypeScript — APIs, real-time services and the clients on top of them, from schema to deployment. What I care about most is code a team can pick up, and errors that surface before a user ever sees them.',
         ],
       },
       {
@@ -758,13 +764,14 @@ export const SECTIONS = {
       // What is jotted on the pad while sitting at the machine: a different handful
       // each visit, a few of them crossed off. See `jots()` below.
       { kind: 'jots', items: jots() },
+      // Ticked and not yet: the numbers that were hit, and what the pad says is next.
+      { kind: 'checklist', groups: CHECKLIST },
       { kind: 'heading', text: 'Drafts' },
       {
         kind: 'rows',
         items: [
-          { meta: 'Draft', title: 'Cutting API latency by 65% without a rewrite', href: '#' },
-          { meta: 'Draft', title: 'Holding 10,000 sockets: lessons from live tracking', href: '#' },
-          { meta: 'Draft', title: "When RabbitMQ is the right answer — and when it isn't", href: '#' },
+          { title: 'Cutting API latency by 65% without a rewrite', href: '#' },
+          { title: 'Holding 10,000 sockets: lessons from live tracking', href: '#' },
         ],
       },
     ],

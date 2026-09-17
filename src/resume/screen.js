@@ -956,6 +956,7 @@ export function blocks(ctx, list, pad, top, W, u, paint) {
     else if (block.kind === 'footnote') y = body(ctx, [block.text], pad, y, W, u, paint);
     else if (block.kind === 'rows') y = rows(ctx, block.items, pad, y, W, u, paint);
     else if (block.kind === 'jots') y = jots(ctx, block.items, pad, y, W, u, paint);
+    else if (block.kind === 'checklist') y = checklist(ctx, block.groups, pad, y, W, u, paint);
     // Anything else is skipped, the way `panels.js` skips block kinds it lacks.
   }
   return y;
@@ -1013,6 +1014,79 @@ function jots(ctx, items, pad, top, W, u, paint) {
 }
 
 /**
+ * Boxes on the pad, in the same hand as the jots: a small square drawn as one loose
+ * pen stroke, a tick inside the done ones, and the group's word — "done", "next" — set
+ * small above each run. The done lines are dimmed the way a struck jot is, but left
+ * legible: they are the point.
+ */
+function checklist(ctx, groups, pad, top, W, u, paint) {
+  const size = u * SCALE.lead_size * 1.15;
+  const line = size * 1.3 * leading;
+  const box = size * 0.72;
+  const gap = size * 0.5;
+
+  let y = top + line * 0.2;
+  groups.forEach((group, g) => {
+    ctx.font = `500 ${size * 0.8}px ${face}`;
+    if (paint) {
+      ctx.fillStyle = ACCENT;
+      ctx.fillText(group.group, pad, y);
+    }
+    y += line * 0.85;
+
+    ctx.font = `500 ${size}px ${face}`;
+    const done = group.group === 'done';
+    // Wrapped to the pad's width, the turned line hanging in under the first.
+    const width = W - pad * 2 - box - gap;
+    group.items.forEach((text, i) => {
+      // A fixed seed per line, so the wobble holds still between paints.
+      const seed = Math.sin((g + 1) * 7.3 + i * 3.1);
+      const lines = wrap(ctx, text, width);
+      if (paint) {
+        ctx.save();
+        ctx.translate(pad, y);
+        ctx.rotate(seed * 0.01);
+        penBox(ctx, 0, size * 0.18, box, seed, done);
+        ctx.fillStyle = done ? INK_DIM : INK;
+        lines.forEach((part, k) => ctx.fillText(part, box + gap, line * k * 0.9));
+        ctx.restore();
+      }
+      y += line + line * 0.9 * (lines.length - 1);
+    });
+    y += line * 0.35;
+  });
+  return y;
+}
+
+/**
+ * A square drawn by hand: four strokes that do not quite meet at the corners, and,
+ * when `ticked`, a check drawn in two strokes that overshoots the box the way a pen
+ * does when the thing is actually done.
+ */
+function penBox(ctx, x, y, s, seed, ticked) {
+  const w = (k) => Math.sin(seed * 5 + k) * s * 0.06;
+  ctx.strokeStyle = INK_DIM;
+  ctx.lineWidth = Math.max(1.5, s * 0.075);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x + w(1), y + w(2));
+  ctx.lineTo(x + s + w(3), y + w(4));
+  ctx.lineTo(x + s + w(5), y + s + w(6));
+  ctx.lineTo(x + w(7), y + s + w(8));
+  ctx.lineTo(x + w(1), y + w(2) - s * 0.02);
+  ctx.stroke();
+  if (!ticked) return;
+  ctx.strokeStyle = ACCENT;
+  ctx.lineWidth = Math.max(1.5, s * 0.1);
+  ctx.beginPath();
+  ctx.moveTo(x + s * 0.2, y + s * 0.5 + w(9));
+  ctx.lineTo(x + s * 0.45, y + s * 0.8 + w(10));
+  ctx.lineTo(x + s * 1.15, y - s * 0.15 + w(11));
+  ctx.stroke();
+}
+
+/**
  * A pen stroke through a line of text: starts a little before it, ends a little past,
  * and drifts up and down along the way. `seed` keeps the wobble the same between
  * frames — the page is painted more than once and the stroke must not crawl.
@@ -1053,12 +1127,15 @@ function rows(ctx, items, pad, top, W, u, paint) {
     }
     y += meta * 0.8 * leading;
 
-    ctx.font = `500 ${meta}px ${face}`;
-    if (paint) {
-      ctx.fillStyle = ACCENT;
-      ctx.fillText(spaced(item.meta.toUpperCase()), pad, y);
+    // The small line above the title — a date, "Draft" — only where the row has one.
+    if (item.meta) {
+      ctx.font = `500 ${meta}px ${face}`;
+      if (paint) {
+        ctx.fillStyle = ACCENT;
+        ctx.fillText(spaced(item.meta.toUpperCase()), pad, y);
+      }
+      y += meta * 1.4 * leading;
     }
-    y += meta * 1.4 * leading;
 
     ctx.font = `500 ${title}px ${face}`;
     for (const text of wrap(ctx, item.title, width)) {

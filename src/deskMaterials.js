@@ -26,6 +26,16 @@ const TEXTURE_DIR = 'textures/desk/';
  */
 const WOOD_TEXTURE_SPAN = 180;
 
+/**
+ * The tabletop's tint, multiplied into its wood map. The pack's board is a near-black
+ * grey (its map averages 39, 39, 39); these are well over 1 on purpose, lifting it
+ * into a deep red-brown — a mahogany — with the grain's contrast kept. Only the top
+ * takes it; the frame is left as the pack made it.
+ */
+const WOOD_TINT = new THREE.Color(1.3, 0.55, 0.36);
+/** The top's finish: 1 is dead flat, lower brings a sheen back. */
+const TOP_ROUGHNESS = 0.92;
+
 /** UV set carrying the planar mapping for the tabletop; 0 stays the model's own. */
 const PLANAR_UV_CHANNEL = 1;
 
@@ -53,7 +63,9 @@ export function applyDeskMaterials(desk) {
   desk.updateMatrixWorld(true);
 
   const box = new THREE.Box3().setFromObject(desk);
-  const wood = makeWoodMaterial(box);
+  // The top slab takes the tint; the trestles' shelf boards are the same wood untinted.
+  const wood = makeWoodMaterial(box, WOOD_TINT, 'desk_wood_top');
+  const shelf = makeWoodMaterial(box, null, 'desk_wood_shelf');
   const metal = makeMetalMaterial();
   const cutY = tabletopUndersideY(desk);
 
@@ -66,28 +78,37 @@ export function applyDeskMaterials(desk) {
       return;
     }
     const shelves = detectShelfBands(node, cutY);
-    node.material = splitByMaterial(node, cutY, shelves) ? [wood, metal] : wood;
+    node.material = splitByMaterial(node, cutY, shelves) ? [wood, shelf, metal] : wood;
   });
 
-  return { wood, metal };
+  return { wood, shelf, metal };
 }
 
-/** Tabletop: the pack's dark wood, mapped planar across our larger L-shaped top. */
-function makeWoodMaterial(box) {
+/**
+ * The pack's dark wood, mapped planar across our larger L-shaped top — `tint` is
+ * multiplied into it where given.
+ */
+function makeWoodMaterial(box, tint, name) {
   const size = box.getSize(new THREE.Vector3());
   const repeat = new THREE.Vector2(
     Math.max(size.x, 1e-6) / WOOD_TEXTURE_SPAN,
     Math.max(size.z, 1e-6) / WOOD_TEXTURE_SPAN
   );
 
+  // The tinted top is matte — an oiled board, not a lacquered one: the pack's
+  // roughness and metalness maps, which give it a sheen, are left off it and the
+  // roughness held flat. The untinted shelves keep the pack's finish.
   const material = new THREE.MeshStandardMaterial({
-    name: 'desk_wood_top',
+    name,
+    ...(tint ? { color: tint } : {}),
     map: texture('Dark_Wood_Final_baseColor.webp', { srgb: true, repeat }),
-    roughnessMap: texture('Dark_Wood_Final_metallicRoughness_rough.webp', { repeat }),
-    metalnessMap: texture('Dark_Wood_Final_metallicRoughness_metal_scale0.webp', { repeat }),
+    ...(tint ? {} : {
+      roughnessMap: texture('Dark_Wood_Final_metallicRoughness_rough.webp', { repeat }),
+      metalnessMap: texture('Dark_Wood_Final_metallicRoughness_metal_scale0.webp', { repeat }),
+    }),
     normalMap: texture('Dark_Wood_Final_normal_norm.webp', { repeat }),
-    roughness: 1,
-    metalness: 1,
+    roughness: tint ? TOP_ROUGHNESS : 1,
+    metalness: tint ? 0 : 1,
   });
   material.userData.keepColor = true;
   return material;
@@ -210,34 +231,34 @@ function detectShelfBands(mesh, cutY) {
 }
 
 /**
- * Reorders the mesh's triangles into a wood run and a metal run and gives it a
- * geometry group per run, so one mesh can carry both materials. Wood is the tabletop
- * plus the flat faces of the trestles' shelf boards; everything else is metal.
+ * Reorders the mesh's triangles into three runs — the tabletop, the flat faces of the
+ * trestles' shelf boards, and the metal of everything else — and gives it a geometry
+ * group per run, so one mesh can carry all three materials in that order.
  *
- * Returns false when every triangle lands on the same side — the caller then just
+ * Returns false when every triangle lands on the tabletop — the caller then just
  * assigns the single material.
  */
 function splitByMaterial(mesh, cutY, shelves) {
-  const wood = [];
+  const top = [];
+  const shelf = [];
   const metal = [];
 
   eachTriangle(mesh, (indices, a, b, c) => {
     const y = (a.y + b.y + c.y) / 3;
-    let isWood = y >= cutY;
-
-    if (!isWood && shelves.some((band) => y >= band.min && y <= band.max)) {
-      isWood = faceInfo(a, b, c).up >= HORIZONTAL;
-    }
-
-    (isWood ? wood : metal).push(...indices);
+    if (y >= cutY) top.push(...indices);
+    else if (
+      shelves.some((band) => y >= band.min && y <= band.max) &&
+      faceInfo(a, b, c).up >= HORIZONTAL
+    ) shelf.push(...indices);
+    else metal.push(...indices);
   });
 
-  if (!wood.length || !metal.length) return false;
-
-  mesh.geometry.setIndex([...wood, ...metal]);
+  if (!shelf.length && !metal.length) return false;
+  mesh.geometry.setIndex([...top, ...shelf, ...metal]);
   mesh.geometry.clearGroups();
-  mesh.geometry.addGroup(0, wood.length, 0);
-  mesh.geometry.addGroup(wood.length, metal.length, 1);
+  mesh.geometry.addGroup(0, top.length, 0);
+  mesh.geometry.addGroup(top.length, shelf.length, 1);
+  mesh.geometry.addGroup(top.length + shelf.length, metal.length, 2);
   return true;
 }
 
