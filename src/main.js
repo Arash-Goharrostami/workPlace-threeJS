@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { setupEnvironment, COARSE_POINTER } from './environment.js';
+import { setupEnvironment } from './environment.js';
+import { TIER, LOW, QUALITY, adaptiveResolution } from './quality.js';
 import { loadModel } from './loadModel.js';
 import { setupResume } from './resume/index.js';
 import { HOME_VIEW, introView, placeView } from './homeView.js';
@@ -13,6 +14,15 @@ import { ui } from './overlay.js';
 // pulled in with `import()` below, so Vite keeps them (and TransformControls, Stats) in a
 // chunk of their own that the resume never downloads.
 const DEBUG = new URLSearchParams(window.location.search).has('debug');
+/**
+ * How far the orbit may tilt outside debug mode, in degrees of polar angle — 90 is eye
+ * level, smaller is higher up. Both views the room rests at must fit between them: the
+ * desk view (`INTRO_VIEW`, ~83°) and the wide shot a click on empty room goes back up
+ * to (`HOME_VIEW`, 61°). A floor under the desk view clamps the camera off it the
+ * moment the opening flight lands, and from there the click cannot find its way out.
+ */
+const LOWEST_POLAR = 96;
+const HIGHEST_POLAR = 35;
 document.body.classList.toggle('is-debug', DEBUG);
 // The resume's chrome stays hidden from the first frame until the opening click (see
 // `ui.begin()`); added here rather than after the load, or it flashes during the fade.
@@ -51,11 +61,15 @@ const viewportSize = () => ({
 // The frame is the tab's whole cost, so it is kept as small as it can be without
 // showing: a 1.5× cap instead of a Retina 2× is 44% fewer pixels a frame, and at that
 // density the pixel ratio already hides the edges MSAA was paying for — it is only
-// switched on for the low-DPR screens that would otherwise show them.
-const MAX_PIXEL_RATIO = 1.5;
+// switched on for the low-DPR screens that would otherwise show them. Both come from
+// the device's tier (`quality.js`): a weak one starts at 1× with no MSAA at all.
+console.info(`[quality] tier ${TIER}`);
 let renderer;
 try {
-  renderer = new THREE.WebGLRenderer({ antialias: window.devicePixelRatio < 1.5 });
+  renderer = new THREE.WebGLRenderer({
+    antialias: QUALITY.antialias && window.devicePixelRatio < 1.5,
+    powerPreference: 'high-performance',
+  });
 } catch (error) {
   throw new Error(`The graphics context could not be created — ${error.message}`);
 }
@@ -64,7 +78,7 @@ try {
 renderer.domElement.addEventListener('webglcontextlost', () => {
   report('The device ran out of graphics memory and the room went dark. Reload to try again.');
 });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, QUALITY.pixelRatio));
 renderer.setSize(viewportSize().width, viewportSize().height);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -72,7 +86,7 @@ renderer.toneMappingExposure = 0.8;
 renderer.shadowMap.enabled = true;
 // PCFSoft samples the map many times a pixel; on a phone the plain PCF filter is the
 // difference between a steady frame and a stutter, and the softness is lost on its screen.
-renderer.shadowMap.type = COARSE_POINTER ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = TIER === 'high' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -84,6 +98,9 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.06;
 controls.autoRotateSpeed = 0.8;
+// The desk view's drag sense, mouse and touch alike. The wide shot and an open prop
+// set their own each frame — see the per-state clamp in `resume/flight.js`.
+controls.rotateSpeed = -1;
 
 const environment = setupEnvironment(scene, renderer);
 let stats = null;
@@ -112,6 +129,13 @@ loadModel({ scene, camera, controls, environment, ui }).then((model) => {
     });
     renderer.domElement.addEventListener('pointerdown', startPrinter, { once: true });
   } else {
+    // The orbit does not go below this — the camera never sinks under the desk's
+    // level. Set before the flight is built, since it keeps these limits as the room's
+    // own and puts them back whenever nothing is open. Debug mode has no floor.
+    controls.maxPolarAngle = THREE.MathUtils.degToRad(LOWEST_POLAR);
+    // The view stays on what the flight framed: a shift-drag or a two-finger drag would
+    // slide the target off it, and only edit mode has a reason to.
+    controls.enablePan = false;
     // Set up first, so the flight's overview is the wide view the room loaded at; the
     // opening click then flies down to the desk, and "back" still returns to the room.
     resume = setupResume({
@@ -125,6 +149,9 @@ loadModel({ scene, camera, controls, environment, ui }).then((model) => {
     parkAbove(environment.bounds);
     ui.welcome().then(() => {
       descent = startDescent(environment.bounds);
+      // The descent is the first stretch drawn at full rate: the watch on the frame
+      // time opens with it.
+      resolution.start();
       setTimeout(() => {
         // Worked out on the click, not at load, so a phone turned meanwhile gets its own framing.
         ui.begin().then(() => {
@@ -172,6 +199,11 @@ function startDescent(box) {
       if (t === 1) {
         controls.enabled = true;
         descent = null;
+        // Landed on the home view: from here the wheel only goes closer and the orbit
+        // no higher than `HIGHEST_POLAR`. Locked now and not before, since the room's
+        // limits are applied every frame and either cap set earlier would have hauled
+        // the camera off its descent, which starts above and beyond both.
+        resume?.lockZoomOut(THREE.MathUtils.degToRad(HIGHEST_POLAR));
       }
     },
   };
@@ -185,6 +217,11 @@ function handleResize() {
 }
 
 window.addEventListener('resize', handleResize);
+// The safety net under the tier: the pixel ratio steps down while frames run long.
+const resolution = adaptiveResolution(renderer, (ratio) => {
+  renderer.setPixelRatio(ratio);
+  handleResize();
+});
 // Catches the case where the page is laid out after the first frame.
 new ResizeObserver(handleResize).observe(document.body);
 
@@ -198,7 +235,7 @@ let descent = null;
 // display's full rate either. Idle, it draws at `IDLE_FPS`; while something is actually
 // moving the camera (a drag, a flight, the opening descent, a recent pointer) it goes
 // back to every frame. `dt` is still the real clock delta, so nothing moves slower.
-const IDLE_FPS = 30;
+const IDLE_FPS = LOW ? 15 : 30;
 const IDLE_INTERVAL = 1000 / IDLE_FPS;
 /** How long after the last pointer move the full rate is held, in ms. */
 const ACTIVE_HOLD = 1000;
@@ -210,6 +247,37 @@ renderer.domElement.addEventListener('pointermove', touch, { passive: true });
 renderer.domElement.addEventListener('wheel', touch, { passive: true });
 controls.addEventListener('start', () => { dragging = true; });
 controls.addEventListener('end', () => { dragging = false; touch(); });
+
+// The intro blurb steps aside while the room is being orbited — down and out on the
+// first move, back once the camera has been still for `INTRO_RETURN_MS`: on a phone
+// as the droplet it first arrived as, on a desktop back up the way it went. Only the
+// user's own orbiting counts: a flight or the descent also moves the camera through
+// `controls.update()`, but the card is not its to hide.
+const INTRO_RETURN_MS = 2500;
+// The first name's width in its own ems, for the surname's slide up beside it (see
+// `body.orbiting` in index.html). A ratio, so it holds mid-transition too; taken once
+// the font is in, and again if the viewport changes the size it is set at.
+const measureName = () => {
+  const first = document.querySelector('#intro h1 .first');
+  if (!first) return;
+  const em = first.getBoundingClientRect().width / parseFloat(getComputedStyle(first).fontSize);
+  document.getElementById('intro').style.setProperty('--first-em', em.toFixed(3));
+};
+document.fonts?.ready.then(measureName) ?? measureName();
+window.addEventListener('resize', measureName);
+let introReturn = 0;
+controls.addEventListener('change', () => {
+  if (!controls.enabled || descent !== null || (resume?.isFlying() ?? false)) return;
+  if (!document.body.classList.contains('orbiting')) {
+    document.body.classList.add('orbiting');
+    resume?.blurb.dismiss();
+  }
+  clearTimeout(introReturn);
+  introReturn = setTimeout(() => {
+    document.body.classList.remove('orbiting');
+    resume?.blurb.reopen();
+  }, INTRO_RETURN_MS);
+});
 const isActive = (now) =>
   dragging || now < activeUntil || descent !== null || (resume?.isFlying() ?? false);
 
@@ -222,7 +290,10 @@ document.addEventListener('visibilitychange', () => {
 renderer.setAnimationLoop(() => {
   if (document.hidden) return;
   const now = performance.now();
-  if (!isActive(now) && now - lastFrameAt < IDLE_INTERVAL) return;
+  const active = isActive(now);
+  if (!active && now - lastFrameAt < IDLE_INTERVAL) return;
+  // Only a frame drawn hard on the last is a measure of what one costs.
+  if (active && now - lastFrameAt < 100) resolution.frame(now - lastFrameAt);
   lastFrameAt = now;
   const dt = Math.min(clock.getDelta(), 0.1);
   printer?.userData.update?.(dt);

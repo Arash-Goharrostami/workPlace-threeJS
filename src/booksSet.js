@@ -17,7 +17,7 @@ import { loadGLB } from './gltfLoader.js';
  * only need a yaw. Rotations are applied before anything is measured.
  */
 
-const MODEL_URL = 'models/booksSet1.glb';
+export const MODEL_URL = 'models/booksSet1.glb';
 
 /**
  * The five books used, in world centimetres and degrees, rotation in the editor readout's

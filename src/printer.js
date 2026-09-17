@@ -46,7 +46,7 @@ import { setupPrinterSound } from './printerSound.js';
  * bake a little further, since the source is authored dark for a studio render.
  */
 
-const MODEL_URL = 'models/printer3d.glb';
+export const MODEL_URL = 'models/printer3d.glb';
 
 /**
  * The source is authored in centimetres, which is this scene's own unit — unlike the

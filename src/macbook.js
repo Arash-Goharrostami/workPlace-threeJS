@@ -22,7 +22,7 @@ import { STAND_SLOPE } from './deskAccessories.js';
  * furthest this mesh should be taken; the screen is found by area, not by name, so the
  * cut does not touch how the section frames it.
  */
-const MODEL_URL = 'models/macbookPro16.glb';
+export const MODEL_URL = 'models/macbookPro16.glb';
 
 /** Metres (the model's units) to this scene's centimetres. */
 const SCALE = 100;

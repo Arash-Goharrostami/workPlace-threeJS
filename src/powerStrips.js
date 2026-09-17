@@ -18,7 +18,7 @@ import { loadGLB } from './gltfLoader.js';
  * variants — and this module loads two of them, so two thirds of its triangles drew parts
  * nothing asks for. `PART` and `PLUG_PART` below are the names that decide what survives.
  */
-const MODEL_URL = 'models/powerStrip.glb';
+export const MODEL_URL = 'models/powerStrip.glb';
 const PART = 'connector_strip';
 
 /** The black plug from the same pack, put in the wall socket at the cable's far end. */

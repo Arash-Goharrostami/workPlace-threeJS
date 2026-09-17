@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { LOW } from '../quality.js';
 import { createNotesApp } from './notesApp.js';
 import { createTextEditApp } from './textEditApp.js';
 import { createStackApp } from './stackApp.js';
@@ -26,8 +27,12 @@ import { createStackApp } from './stackApp.js';
  * turning the wheel then costs one blit, not a re-wrap of every paragraph.
  */
 
-/** Canvas pixels down the long edge. The panel is ~70 cm and is read from close up. */
-const LONG_EDGE = 1600;
+/**
+ * Canvas pixels down the long edge. The panel is ~70 cm and is read from close up. A
+ * weak device gets three quarters of it: the screens are the room's biggest textures
+ * after the shadow map, and at a phone's distance the type is still sharp.
+ */
+const LONG_EDGE = LOW ? 1200 : 1600;
 
 /** Width of the scroll indicator down the panel's right edge, as a fraction. */
 const RAIL = 0.006;
@@ -62,6 +67,9 @@ export const INK = '#e7e9ee';
 export const INK_DIM = '#98a1b2';
 export const INK_FAINT = '#7d8595';
 export const ACCENT = '#6ea8fe';
+/** The accent as a wash and a hairline, for the date badges in the timeline. */
+const ACCENT_TINT = 'rgba(110, 168, 254, .13)';
+const ACCENT_LINE = 'rgba(110, 168, 254, .35)';
 export const GROUND = '#0d0f13';
 export const LINE = '#232833';
 
@@ -192,15 +200,25 @@ function inkBounds(image) {
   return { x: minX * sx, y: minY * sy, w: (maxX - minX + 1) * sx, h: (maxY - minY + 1) * sy };
 }
 
-/** Every icon a section's chips will ask for, paired with the ink each is drawn in. */
+/**
+ * Every icon a section's chips will ask for, paired with the ink each is drawn in —
+ * the skills groups' marks and tags, and the tags on a role or a project card.
+ */
 function iconsOf(section) {
   const wanted = [];
   for (const block of section.blocks ?? []) {
-    if (block.kind !== 'skills') continue;
-    for (const group of block.groups) {
-      if (group.icon) wanted.push([group.icon, ACCENT]);
-      for (const tag of group.tags) {
-        if (tag.icon) wanted.push([tag.icon, INK]);
+    if (block.kind === 'skills') {
+      for (const group of block.groups) {
+        if (group.icon) wanted.push([group.icon, ACCENT]);
+        for (const tag of group.tags) {
+          if (tag.icon) wanted.push([tag.icon, INK]);
+        }
+      }
+    } else if (block.kind === 'timeline' || block.kind === 'cards') {
+      for (const item of block.items) {
+        for (const tag of item.tags ?? []) {
+          if (tag.icon) wanted.push([tag.icon, INK]);
+        }
       }
     }
   }
@@ -513,16 +531,17 @@ export function setupScreens() {
         });
       }
       // The same again for the chips' icons: drawn with their slots empty now, and
-      // once more with the glyphs in. Only the ones still on their way queue a repaint.
-      if (!app) {
-        const pending = iconsOf(section)
-          .map(([name, color]) => loadIcon(name, color))
-          .filter((entry) => !entry.image);
-        if (pending.length) {
-          Promise.all(pending.map((entry) => entry.promise)).then(() => {
-            if (painted.get(prop)?.plane === plane) screens.paint(prop, section);
-          });
-        }
+      // once more with the glyphs in. Only the ones still on their way queue a repaint
+      // — of the page, or of the window, whose chips come from the same renderer.
+      const pending = iconsOf(section)
+        .map(([name, color]) => loadIcon(name, color))
+        .filter((entry) => !entry.image);
+      if (pending.length) {
+        Promise.all(pending.map((entry) => entry.promise)).then(() => {
+          if (painted.get(prop)?.plane !== plane) return;
+          if (app) app.repaint();
+          else screens.paint(prop, section);
+        });
       }
       const page = app
         ? { view, texture, app }
@@ -1271,6 +1290,31 @@ function heading(ctx, text, pad, top, u, paint) {
 }
 
 /**
+ * The dates of a role as a small rounded badge tinted with the accent — read at a
+ * glance, where the spaced faint caps it used to be were the first thing lost on the
+ * display. Returns its bottom.
+ */
+function dateBadge(ctx, text, left, top, u, paint) {
+  const size = u * SCALE.text * 0.85;
+  const height = size * 1.9;
+  const inset = size * 0.8;
+  ctx.font = `500 ${size}px ${face}`;
+  const width = ctx.measureText(text).width + inset * 2;
+  if (paint) {
+    ctx.beginPath();
+    ctx.roundRect(left, top, width, height, height / 2);
+    ctx.fillStyle = ACCENT_TINT;
+    ctx.fill();
+    ctx.strokeStyle = ACCENT_LINE;
+    ctx.lineWidth = Math.max(1, u * 0.0014);
+    ctx.stroke();
+    ctx.fillStyle = ACCENT;
+    ctx.fillText(text, left + inset, top + height * 0.27);
+  }
+  return top + height;
+}
+
+/**
  * A run of roles down a hairline rule, each with its dates, its title, who it was for,
  * the stack it used and what came of it. The rule is drawn per role rather than as one
  * line down the block, so a role cannot be measured into a gap the rule then crosses.
@@ -1285,25 +1329,22 @@ function timeline(ctx, items, pad, top, W, u, paint) {
   for (const item of items) {
     const from = y;
 
-    ctx.font = `500 ${u * SCALE.label}px ${face}`;
-    if (paint) {
-      ctx.fillStyle = ACCENT;
-      ctx.fillText(spaced(item.date.toUpperCase()), left, y);
-    }
-    y += u * SCALE.label * 2.4;
+    y = dateBadge(ctx, item.date, left, y, u, paint) + u * 0.03;
 
+    // The product first and in full ink — it is what a reader scans the column for —
+    // and the role held there under it.
     ctx.font = `600 ${u * SCALE.role}px ${face}`;
     if (paint) {
       ctx.fillStyle = INK;
-      ctx.fillText(item.role, left, y);
+      ctx.fillText(item.org ?? item.role, left, y);
     }
     y += u * SCALE.role * 1.5;
 
     if (item.org) {
-      ctx.font = `400 ${u * SCALE.text}px ${face}`;
+      ctx.font = `500 ${u * SCALE.text}px ${face}`;
       if (paint) {
         ctx.fillStyle = INK_DIM;
-        ctx.fillText(item.org, left, y);
+        ctx.fillText(item.role, left, y);
       }
       y += u * SCALE.text * 1.9;
     }
@@ -1355,7 +1396,7 @@ function bullets(ctx, points, left, top, width, u, paint) {
       ctx.fillStyle = INK_DIM;
       lines.forEach((text, i) => ctx.fillText(text, left + inset, y + line * i));
     }
-    y += line * lines.length + line * 0.25;
+    y += line * lines.length + line * 0.1;
   }
   return y + line * 0.4;
 }
@@ -1398,21 +1439,14 @@ function cards(ctx, items, pad, top, W, u, paint) {
 function card(ctx, item, left, top, width, u, paint) {
   let y = top;
 
-  if (item.meta) {
-    ctx.font = `500 ${u * SCALE.label}px ${face}`;
-    if (paint) {
-      ctx.fillStyle = ACCENT;
-      ctx.fillText(spaced(item.meta.toUpperCase()), left, y);
-    }
-    y += u * SCALE.label * 2.2;
-  }
+  if (item.meta) y = dateBadge(ctx, item.meta, left, y, u, paint) + u * 0.03;
 
-  ctx.font = `600 ${u * SCALE.role}px ${face}`;
+  ctx.font = `600 ${u * SCALE.heading * 0.8}px ${face}`;
   if (paint) {
     ctx.fillStyle = INK;
     ctx.fillText(item.title, left, y);
   }
-  y += u * SCALE.role * 1.6;
+  y += u * SCALE.heading * 0.8 * 1.5;
 
   if (item.tags?.length) y = chips(ctx, item.tags, left, y, left + width, u, paint) + u * 0.025;
 
@@ -1426,6 +1460,13 @@ function card(ctx, item, left, top, width, u, paint) {
       lines.forEach((text, i) => ctx.fillText(text, left, y + line * i));
     }
     y += line * lines.length;
+  }
+
+  // What it does, as the roles list what came of them — under the description, with
+  // a breath between, so the card reads hook first and features second.
+  if (item.points?.length) {
+    y += u * SCALE.text * 0.6;
+    y = bullets(ctx, item.points, left, y, width, u, paint) - u * SCALE.text * SCALE.lead * 0.4;
   }
 
   return y;

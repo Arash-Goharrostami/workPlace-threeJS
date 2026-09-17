@@ -4,7 +4,7 @@ import { materialsOf } from './materials.js';
 import { fillDeskCorner } from './fillDeskCorner.js';
 import { applyDeskMaterials } from './deskMaterials.js';
 
-const MODEL_URL = 'models/desk.glb';
+export const MODEL_URL = 'models/desk.glb';
 
 /** The two desks in Workplace.glb that get swapped out. */
 const OLD_DESK_NAMES = ['Table01_Desk01', 'Table01_Table01'];

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { QUALITY } from './quality.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 /**
@@ -9,12 +10,12 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 const AMBIENT_FILL = 0.78;
 
 /**
- * A touch device is a phone or a tablet, and its GPU pays for every shadow texel
- * sampled. The key light's map is halved there — 1024² is soft enough for a scene
- * seen on a 6-inch screen and a quarter of the fill-rate of the desktop's 2048².
+ * The key light's shadow map is sized by the device's tier (`quality.js`): a GPU pays
+ * for every shadow texel sampled, and 1024² is soft enough for a scene seen on a
+ * 6-inch screen at a quarter of the fill-rate of the desktop's 2048²; a weak device
+ * gets 512².
  */
-export const COARSE_POINTER = window.matchMedia('(pointer: coarse)').matches;
-const SHADOW_MAP_SIZE = COARSE_POINTER ? 1024 : 2048;
+const SHADOW_MAP_SIZE = QUALITY.shadowMap;
 
 /**
  * Image-based lighting from three's built-in room environment (no external HDR

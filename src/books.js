@@ -32,7 +32,7 @@ import { loadGLB } from './gltfLoader.js';
  * measured.
  */
 
-const MODEL_URL = 'models/books.glb';
+export const MODEL_URL = 'models/books.glb';
 
 /**
  * The six books, in world centimetres and degrees — set by hand in edit mode and

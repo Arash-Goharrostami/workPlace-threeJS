@@ -23,7 +23,7 @@ import { buildCable } from './cable.js';
  * names a parent node rather than a mesh: its four meshes hang off it as `Object_4`
  * onwards.
  */
-const MODEL_URL = 'models/usbCable.glb';
+export const MODEL_URL = 'models/usbCable.glb';
 
 /**
  * The connector assembly in the pack — moulding, strain relief and the metal tongue.

@@ -21,7 +21,7 @@ import { loadGLB } from './gltfLoader.js';
  * on, and why the shrink keeps them (`dedup --materials false`).
  */
 
-const MODEL_URL = 'models/dumbbells.glb';
+export const MODEL_URL = 'models/dumbbells.glb';
 
 /**
  * How wide the pair reads, along its longer side — what the import is scaled to. It

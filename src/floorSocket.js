@@ -34,7 +34,7 @@ import { materialsOf } from './materials.js';
  * are not.
  */
 
-const MODEL_URL = 'models/floorSocket.glb';
+export const MODEL_URL = 'models/floorSocket.glb';
 
 /** The material the back box wears. The source names its parts in Spanish. */
 const BOX_MATERIAL = 'CAJA';

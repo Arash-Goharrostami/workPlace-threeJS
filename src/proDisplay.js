@@ -39,7 +39,7 @@ import { materialsOf } from './materials.js';
  * The `panel` and `xdr_mount` nodes `PANEL` and `MOUNT` look up by name survive all of
  * it, as does the mount split that `scripts/split-display-mount.py` produced.
  */
-const MODEL_URL = 'models/proDisplayXdr.glb';
+export const MODEL_URL = 'models/proDisplayXdr.glb';
 
 /**
  * The placeholder shown while that downloads: the same import with its back lattice
@@ -54,7 +54,7 @@ const MODEL_URL = 'models/proDisplayXdr.glb';
  * instead of a grid of holes onto the screen's inside. Same nodes, same outer box —
  * whatever measures the display against the riser or hangs off it sees no difference.
  */
-const LITE_URL = 'models/proDisplayXdrLite.glb';
+export const LITE_URL = 'models/proDisplayXdrLite.glb';
 
 /** Metres (the model's units) to this scene's centimetres. */
 const SCALE = 100;

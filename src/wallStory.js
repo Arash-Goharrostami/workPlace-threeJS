@@ -36,8 +36,16 @@ const DATE = '15 September 2026';
 /** The wall it hangs on. Its outer face is the one pointing -z. */
 const WALL = 'wall1';
 
-/** How wide the mural is, in this scene's centimetres, and where its top sits. */
-const WIDTH = 230;
+/**
+ * How wide the mural is, in this scene's centimetres, and where its top sits. On a
+ * phone it is written narrower — the same words in a taller column — so that when the
+ * camera fits it to a portrait viewport by width the chalk is still large enough to
+ * read; the type is set larger there too (see `drawStory`), so the column runs on down
+ * the wall's face. Decided at load, like the room's other narrow layouts; a phone is
+ * not resized.
+ */
+const NARROW = window.matchMedia('(max-width: 760px)');
+const WIDTH = NARROW.matches ? 135 : 230;
 const TOP_HEIGHT = 235;
 
 /** How far off the concrete the plane floats, so it never z-fights the wall. */
@@ -119,12 +127,18 @@ export async function addWallStory(model) {
  */
 function drawStory() {
   const width = CANVAS_WIDTH;
-  const margin = width * 0.06;
-  const column = width - margin * 2;
   // Caveat runs small for its em, so everything is a step larger than print would be.
-  const titleSize = width * 0.068;
-  const bodySize = width * 0.034;
-  const smallSize = width * 0.03;
+  // On a phone larger still: the chalk is read from a viewport a third as wide, and
+  // the bigger type wraps the same words into more, shorter lines, so the mural grows
+  // taller and fills the wall's face rather than its top.
+  const scale = NARROW.matches
+    ? { margin: 0.05, title: 0.09, body: 0.05, small: 0.042 }
+    : { margin: 0.06, title: 0.068, body: 0.034, small: 0.03 };
+  const margin = width * scale.margin;
+  const column = width - margin * 2;
+  const titleSize = width * scale.title;
+  const bodySize = width * scale.body;
+  const smallSize = width * scale.small;
   const lineHeight = bodySize * 1.25;
   const paragraphGap = bodySize * 0.7;
   const random = mulberry32(7);

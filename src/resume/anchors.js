@@ -132,6 +132,24 @@ const ANCHORS = {
     // outward from the middle of the room — is already face-on to it.
     lift: 0,
   },
+  story: {
+    // The chalk mural on the *outer* face of the back wall (`wallStory.js`): found from
+    // the wide shot, when the camera swings round behind the room, and read there.
+    prop: 'Wall_story',
+    label: 'About this place',
+    view: 'Detail — the back wall',
+    fit: 'face',
+    // Looser than the frames: chalk on a wall wants some concrete round it, and the
+    // fitted distance alone put the title and the signature against the edges.
+    distance: 1.35,
+    // On a phone the fit is width-bound and the mural is set to fill the wall's face,
+    // so only the frame's own margin is left round it.
+    narrowDistance: 1.0,
+    // The one prop the inward line cannot reach: it faces away from the room, so the
+    // camera stands outside, off the wall's -z face, looking back at the concrete.
+    dir: [0, 0, -1],
+    lift: 0,
+  },
 };
 
 /** How much room is left around a framed prop; 1 would touch the viewport edges. */

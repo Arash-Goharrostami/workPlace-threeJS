@@ -20,7 +20,7 @@ import { loadGLB } from './gltfLoader.js';
  * ran nowhere. Re-importing the model brings it back, so the flag has to come with it.
  */
 
-const MODEL_URL = 'models/benqScreenbar.glb';
+export const MODEL_URL = 'models/benqScreenbar.glb';
 
 /**
  * How it was left, in degrees and the scale it was stretched to — set by hand in edit

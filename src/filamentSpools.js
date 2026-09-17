@@ -24,7 +24,7 @@ import { loadGLB } from './gltfLoader.js';
  * so it only needs seating.
  */
 
-const MODEL_URL = 'models/filamentSpools.glb';
+export const MODEL_URL = 'models/filamentSpools.glb';
 
 /**
  * Where the stack stands, in world centimetres — set by hand in edit mode and copied out

@@ -12,7 +12,7 @@ import { loadGLB } from './gltfLoader.js';
  * footprint, dropped to y = 0 and taken down to a real 5.3 x 3 x 14 cm.
  */
 
-const MODEL_URL = 'models/cableHolder.glb';
+export const MODEL_URL = 'models/cableHolder.glb';
 
 /** Takes the source's 1400-unit length down to a 14 cm holder. */
 const SCALE = 0.01;

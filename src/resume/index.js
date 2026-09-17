@@ -1,4 +1,5 @@
 import { buildAnchors, reframeAnchors, SECTION_ORDER } from './anchors.js';
+import { dropIn, jiggle, SPRING_OVER } from '../droplet.js';
 import { setupFlight, FLIGHT_MS } from './flight.js';
 import { setupPicking } from './picking.js';
 import { setupOutlines } from './outline.js';
@@ -60,10 +61,14 @@ export function setupResume({ scene, camera, renderer, controls, model, onSound,
   const anchors = buildAnchors(model, camera);
   if (!Object.keys(anchors).length) {
     console.warn('[resume] no props resolved — leaving the room as a plain viewer');
-    return { update() {}, intro() {}, isFlying: () => false };
+    return { update() {}, intro() {}, isFlying: () => false, lockZoomOut() {}, blurb: { dismiss() {}, reopen() {} } };
   }
 
   const introEl = document.getElementById('intro');
+  // On a phone the blurb is a glass pane that opens from its corner when the intro
+  // starts (see `enterBlurb`); unseen until then. On a desktop it is plain text.
+  const introText = SHEET.matches ? document.getElementById('intro-text') : null;
+  if (introText) introText.style.opacity = '0';
   // The watch beside the phone: it wakes with the time whenever Contact opens.
   const watchFace = model.getObjectByName('Apple_Watch_SE')?.userData.face ?? null;
   const dockEl = document.getElementById('dock');
@@ -84,7 +89,20 @@ export function setupResume({ scene, camera, renderer, controls, model, onSound,
     onClose: () => open(null),
   });
 
-  buildDock(dockEl, live, anchors, onSound);
+  // The view button: from the desk up to the wide shot, where the orbit runs free all
+  // the way round, and from there back down to the desk. Same guard as `onMiss`: not
+  // over a section, and not mid-flight.
+  const dock = buildDock(dockEl, live, anchors, onSound, () => {
+    if (openKey || flight.flying) return;
+    if (flight.wideView) flight.to(null, 0);
+    else flight.toWide();
+  });
+  // Every glass button wobbles under the finger, like the liquid it is dressed as.
+  for (const surface of [dockEl, document.getElementById('menu'), backBtn]) {
+    surface?.addEventListener('pointerdown', (event) => {
+      jiggle(event.target.closest('.nav-btn, .menu-item'));
+    });
+  }
 
   const flight = setupFlight({ camera, controls, canvas });
   const outlines = setupOutlines(model);
@@ -104,6 +122,11 @@ export function setupResume({ scene, camera, renderer, controls, model, onSound,
       onProp[key] = setupPhoneApps({ group: anchors[key].object });
     } else if (mode === 'sheet') {
       onProp[key] = setupSheetPrompt({ group: anchors[key].object });
+    } else if (mode === 'mural') {
+      // Something simply read where it hangs: nothing on it to hover or open, so a
+      // click anywhere while it is up — the chalk itself included — steps back out,
+      // the way a tap off any prop does.
+      onProp[key] = { hover: () => false, open: () => (dismiss(), true), reset() {} };
     } else if (SECTIONS[key]?.onProp) {
       console.warn(`[resume] section "${key}" is read on its prop but names no propMode`);
     }
@@ -193,6 +216,7 @@ export function setupResume({ scene, camera, renderer, controls, model, onSound,
 
   function open(key) {
     const next = panels.show(key);
+    const leaving = openKey;
     // The window being left goes back to full-screen; the one being opened shrinks to
     // its phone layout on a narrow screen — the moment it is read, not before.
     if (openKey && SECTIONS[openKey]?.screen) screens.setCompact(anchors[openKey].object, false);
@@ -213,7 +237,12 @@ export function setupResume({ scene, camera, renderer, controls, model, onSound,
     // narrow screen the panel is a bottom sheet spanning the full width, so there is
     // no free half to shift the prop into — pass no width and the lens stays centred.
     const width = next && !SHEET.matches ? panels.widthOf(next) : 0;
-    flight.to(next ? anchors[next] : null, width);
+    // Closing a section goes back to the overview — except one read from outside the
+    // room, the mural on the back wall: that was reached from the wide shot, and the
+    // way out is back up to it, not down to the desk on the far side of the concrete.
+    const wasOutside = !next && openKey === null && leaving && SECTIONS[leaving]?.outside;
+    if (wasOutside) flight.toWide();
+    else flight.to(next ? anchors[next] : null, width);
 
     toggle(introEl, !next);
     toggle(dockEl, !next);
@@ -225,8 +254,9 @@ export function setupResume({ scene, camera, renderer, controls, model, onSound,
     // Back to a level lens: the drift belongs to whatever is open now, not to the
     // pointer's last position over what was.
     flight.setDrift(0, 0);
-    // A section is opened at its beginning, not where it was last left.
-    if (next && SECTIONS[next]?.screen) screens.rewind(anchors[next].object);
+    // A screen is opened where it was last left — the group picked in Shortcuts, the
+    // note open in Notes, how far a page was read — the way the machines themselves
+    // would keep it. Nothing is rewound; `screens.rewind()` stays for a reload.
     // Held rather than hovered: the pointer is off in the panel by now, and the prop
     // being read is the one thing on screen that should still be lit. A section shown
     // on its own screen is the exception — it is already the brightest thing in the
@@ -245,14 +275,20 @@ export function setupResume({ scene, camera, renderer, controls, model, onSound,
   const update = () => {
     flight.update();
     picking.update();
+    // The glyph follows the view whichever way it got there — the button, a click on
+    // empty room, or closing the mural.
+    dock.setWide(flight.wideView);
   };
 
   // The view drifts with the pointer — browsing the room or reading a section — so the
   // scene is never a still image. Fed as a fraction of the viewport; `flight.js` turns
   // it into a lens shift rather than moving the camera.
   canvas.addEventListener('pointermove', (event) => {
-    // A mouse only: a finger on the screen is scrolling or orbiting, not leaning.
-    if (event.pointerType === 'touch') return;
+    // A mouse only: a finger on the screen is scrolling or orbiting, not leaning. And
+    // only while hovering: a held button is a drag, which belongs to the orbit — with
+    // a prop open its tilt band is narrow enough that a lean chasing the pointer would
+    // outweigh it — so the lean holds where it was until the mouse is released.
+    if (event.pointerType === 'touch' || event.buttons) return;
     const rect = canvas.getBoundingClientRect();
     flight.setDrift(
       ((event.clientX - rect.left) / rect.width) * 2 - 1,
@@ -329,15 +365,34 @@ export function setupResume({ scene, camera, renderer, controls, model, onSound,
    * The opening flight, from the wide view the room loaded at down to the desk — which
    * is the view "back" returns to from then on.
    */
+  let blurbDrop = null;
   function intro({ position, target }) {
+    dock.enter();
+    blurbDrop = enterBlurb(introText, dock.menuBtn);
     flight.fly(position, target, 'View — desk');
   }
+
+  /**
+   * The blurb while the room is orbited (`body.orbiting`, set by `main.js`): `dismiss`
+   * drops a droplet still playing so the pane just slides away under its stylesheet,
+   * `reopen` plays the entrance again from the Menu button once the camera has
+   * rested. On a desktop the blurb is plain text and both are no-ops.
+   */
+  const blurb = {
+    dismiss() { blurbDrop?.cancel(); blurbDrop = null; },
+    reopen() {
+      if (!introText) return;
+      blurbDrop?.cancel();
+      blurbDrop = enterBlurb(introText, dock.menuBtn, { delay: 0, duration: 1000 });
+    },
+  };
 
   /** Whether the camera is flying or the lean is still settling — `main.js` keeps the
    *  full frame rate up while it is. */
   const isFlying = () => flight.moving;
 
-  return { update, open, intro, isFlying, get openKey() { return openKey; } };
+  const lockZoomOut = (minPolar) => flight.lockZoomOut(minPolar);
+  return { update, open, intro, isFlying, lockZoomOut, blurb, get openKey() { return openKey; } };
 }
 
 /** Fades a bit of chrome out without collapsing the layout the labels dodge around. */
@@ -345,6 +400,14 @@ function toggle(element, visible) {
   if (!element) return;
   element.style.opacity = visible ? '1' : '0';
   element.style.pointerEvents = visible ? 'auto' : 'none';
+  // Belt and braces: on the phone the glass buttons went on taking taps under a
+  // parent's `pointer-events: none` — each is composited on its own for its backdrop
+  // blur — so the switch is put on every button too, and the whole thing is made
+  // `inert`, which is the browser's own "nothing in here can be interacted with".
+  element.inert = !visible;
+  for (const button of element.querySelectorAll('button')) {
+    button.style.pointerEvents = visible ? '' : 'none';
+  }
 }
 
 /** The always-available list of sections, for anyone who would rather not hunt props. */
@@ -354,6 +417,7 @@ function toggle(element, visible) {
  */
 const ICONS = {
   back: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 18.75C10.9015 18.7505 10.8038 18.7313 10.7128 18.6935C10.6218 18.6557 10.5393 18.6001 10.47 18.53L4.47001 12.53C4.32956 12.3894 4.25067 12.1988 4.25067 12C4.25067 11.8013 4.32956 11.6107 4.47001 11.47L10.47 5.47003C10.6122 5.33755 10.8002 5.26543 10.9945 5.26885C11.1888 5.27228 11.3742 5.35099 11.5116 5.48841C11.649 5.62582 11.7278 5.81121 11.7312 6.00551C11.7346 6.19981 11.6625 6.38785 11.53 6.53003L6.06001 12L11.53 17.47C11.6705 17.6107 11.7494 17.8013 11.7494 18C11.7494 18.1988 11.6705 18.3894 11.53 18.53C11.4608 18.6001 11.3782 18.6557 11.2872 18.6935C11.1962 18.7313 11.0986 18.7505 11 18.75Z"/><path d="M19 12.75H5C4.80109 12.75 4.61032 12.671 4.46967 12.5303C4.32902 12.3897 4.25 12.1989 4.25 12C4.25 11.8011 4.32902 11.6103 4.46967 11.4697C4.61032 11.329 4.80109 11.25 5 11.25H19C19.1989 11.25 19.3897 11.329 19.5303 11.4697C19.671 11.6103 19.75 11.8011 19.75 12C19.75 12.1989 19.671 12.3897 19.5303 12.5303C19.3897 12.671 19.1989 12.75 19 12.75Z"/></svg>',
+  camera: '<svg viewBox="0 0 36 36" fill="currentColor" aria-hidden="true"><path d="M34,10.34a2.11,2.11,0,0,0-1.16-1.9,2,2,0,0,0-2.13.15L26,11.6V8a2,2,0,0,0-2-2H6a4,4,0,0,0-4,4V26a4,4,0,0,0,4,4H24a2,2,0,0,0,2-2V24.4l4.64,3a2.07,2.07,0,0,0,2.2.2A2.11,2.11,0,0,0,34,25.66ZM31.93,25.77c-.06,0-.11,0-.19-.06L24,20.77V28H6a2,2,0,0,1-2-2V10A2,2,0,0,1,6,8H24v7.23l7.8-5a.11.11,0,0,1,.13,0,.11.11,0,0,1,.07.11V25.66A.11.11,0,0,1,31.93,25.77Z"/></svg>',
   play: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 18.75C7.88537 18.7486 7.77256 18.7212 7.67 18.67C7.54453 18.6086 7.43873 18.5133 7.36453 18.3949C7.29032 18.2765 7.25065 18.1397 7.25 18V6.00003C7.25065 5.86031 7.29032 5.72356 7.36453 5.60518C7.43873 5.4868 7.54453 5.3915 7.67 5.33003C7.79355 5.26757 7.93214 5.24102 8.07002 5.25339C8.2079 5.26576 8.33955 5.31657 8.45 5.40003L16.45 11.4C16.5431 11.4699 16.6187 11.5605 16.6708 11.6646C16.7229 11.7688 16.75 11.8836 16.75 12C16.75 12.1165 16.7229 12.2313 16.6708 12.3354C16.6187 12.4396 16.5431 12.5302 16.45 12.6L8.45 18.6C8.32052 18.6981 8.1624 18.7508 8 18.75ZM8.75 7.50003V16.5L14.75 12L8.75 7.50003Z"/></svg>',
   volumeUp: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 19.75C12.8304 19.7472 12.6661 19.6912 12.53 19.59L7.74 15.75H3C2.80189 15.7474 2.61263 15.6676 2.47253 15.5275C2.33244 15.3874 2.25259 15.1981 2.25 15V9C2.25259 8.80189 2.33244 8.61263 2.47253 8.47253C2.61263 8.33244 2.80189 8.25259 3 8.25H7.74L12.53 4.41C12.6406 4.32106 12.7741 4.26533 12.9151 4.24927C13.0561 4.2332 13.1988 4.25747 13.3265 4.31926C13.4543 4.38104 13.5619 4.4778 13.6369 4.5983C13.7118 4.7188 13.751 4.85809 13.75 5V19C13.7491 19.1422 13.7084 19.2814 13.6324 19.4016C13.5563 19.5218 13.4481 19.6182 13.32 19.68C13.2202 19.728 13.1107 19.7519 13 19.75ZM3.75 14.25H8C8.16991 14.2507 8.33494 14.3069 8.47 14.41L12.25 17.41V6.56L8.47 9.56C8.33886 9.6739 8.17345 9.74076 8 9.75H3.75V14.25Z"/><path d="M18.46 18.07C18.2806 18.0697 18.107 18.006 17.97 17.89C17.8945 17.8258 17.8327 17.7472 17.7881 17.6587C17.7436 17.5702 17.7173 17.4736 17.7107 17.3748C17.7042 17.2759 17.7176 17.1768 17.7501 17.0832C17.7826 16.9896 17.8336 16.9035 17.9 16.83C19.0891 15.5022 19.7466 13.7824 19.7466 12C19.7466 10.2176 19.0891 8.49779 17.9 7.16998C17.8344 7.09644 17.7838 7.01069 17.7513 6.91762C17.7188 6.82455 17.7049 6.72599 17.7105 6.62756C17.7161 6.52913 17.741 6.43276 17.7838 6.34395C17.8266 6.25515 17.8865 6.17564 17.96 6.10998C18.0336 6.04432 18.1193 5.99379 18.2124 5.96127C18.3054 5.92875 18.404 5.91488 18.5024 5.92045C18.6009 5.92602 18.6972 5.95093 18.786 5.99374C18.8749 6.03656 18.9544 6.09644 19.02 6.16998C20.4578 7.76752 21.2534 9.84072 21.2534 11.99C21.2534 14.1392 20.4578 16.2124 19.02 17.81C18.9518 17.8921 18.8662 17.9581 18.7693 18.0031C18.6724 18.048 18.5668 18.0709 18.46 18.07Z"/><path d="M16.11 15.38C15.9481 15.3779 15.7908 15.3255 15.66 15.23C15.5009 15.1107 15.3957 14.933 15.3675 14.7361C15.3394 14.5392 15.3906 14.3391 15.51 14.18C15.9869 13.5533 16.2451 12.7875 16.2451 12C16.2451 11.2125 15.9869 10.4467 15.51 9.82C15.3906 9.66087 15.3394 9.46085 15.3675 9.26393C15.3957 9.06702 15.5009 8.88935 15.66 8.77C15.8191 8.65065 16.0191 8.59941 16.2161 8.62754C16.413 8.65567 16.5906 8.76087 16.71 8.92C17.3863 9.80433 17.7528 10.8867 17.7528 12C17.7528 13.1133 17.3863 14.1957 16.71 15.08C16.6391 15.172 16.5483 15.2468 16.4444 15.2988C16.3405 15.3507 16.2262 15.3785 16.11 15.38Z"/></svg>',
   volumeOff: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17 19.75C16.8304 19.7472 16.6661 19.6912 16.53 19.59L11.74 15.75H7C6.80189 15.7474 6.61263 15.6676 6.47253 15.5275C6.33244 15.3874 6.25259 15.1981 6.25 15V9C6.25259 8.80189 6.33244 8.61263 6.47253 8.47253C6.61263 8.33244 6.80189 8.25259 7 8.25H11.74L16.53 4.41C16.6406 4.32106 16.7741 4.26533 16.9151 4.24927C17.0561 4.2332 17.1988 4.25747 17.3265 4.31926C17.4543 4.38104 17.5619 4.4778 17.6369 4.5983C17.7118 4.7188 17.751 4.85809 17.75 5V19C17.7489 19.1409 17.7092 19.2789 17.6351 19.3988C17.5611 19.5187 17.4555 19.6159 17.33 19.68C17.2264 19.7271 17.1138 19.751 17 19.75ZM7.75 14.25H12C12.1699 14.2507 12.3349 14.3069 12.47 14.41L16.25 17.41V6.56L12.47 9.56C12.3349 9.6631 12.1699 9.71928 12 9.72H7.75V14.25Z"/></svg>',
@@ -382,14 +446,17 @@ const MENU_ORDER = [
 /**
  * The dock: a Menu button that opens the sheet of sections, Contact as an icon on its
  * own, a sound button that mutes the room's ambient sound (the printer's motors — the
- * guitar and the phone are played on purpose and keep their own controls), and a Play
- * button that is not wired to anything yet. `onSound(muted)` is told each press of the
- * sound button. The sheet lists every live section in
- * `MENU_ORDER`, each with its glyph; its rows open through the same `[data-open]`
- * delegation in `panels.js` the old pills used.
+ * guitar and the phone are played on purpose and keep their own controls), and a view
+ * button that swaps between the desk and the wide shot: a camera while the room is at
+ * the desk, play while it is up at the wide shot. `onSound(muted)` is told each press
+ * of the sound button, `onView()` each press of the view button; the returned
+ * `setWide(wide)` keeps the view button's glyph matching where the room actually is.
+ * The sheet lists every live section in `MENU_ORDER`, each with its glyph; its rows
+ * open through the same `[data-open]` delegation in `panels.js` the old pills used.
  */
-function buildDock(dock, keys, anchors, onSound) {
-  if (!dock) return;
+function buildDock(dock, keys, anchors, onSound, onView) {
+  const none = { setWide() {}, enter() {}, menuBtn: null };
+  if (!dock) return none;
   const menu = document.getElementById('menu');
 
   const menuBtn = document.createElement('button');
@@ -424,15 +491,28 @@ function buildDock(dock, keys, anchors, onSound) {
   });
   dock.appendChild(sound);
 
-  // Play: a placeholder for now — the button is there, it does nothing yet.
-  const play = document.createElement('button');
-  play.className = 'nav-btn is-icon glass';
-  play.id = 'play-btn';
-  play.setAttribute('aria-label', 'Play');
-  play.innerHTML = ICONS.play;
-  dock.appendChild(play);
+  // The view button. Starts as the camera: the dock first shows once the intro has
+  // landed at the desk.
+  const view = document.createElement('button');
+  view.className = 'nav-btn is-icon glass';
+  view.id = 'play-btn';
+  view.addEventListener('click', () => onView?.());
+  dock.appendChild(view);
+  let wideGlyph = null;
+  const setWide = (wide) => {
+    if (wide === wideGlyph) return;
+    wideGlyph = wide;
+    view.innerHTML = wide ? ICONS.play : ICONS.camera;
+    view.setAttribute('aria-label', wide ? 'Desk view' : 'Room view');
+  };
+  setWide(false);
 
-  if (!menu) return;
+  // Every button starts unseen: the dock is hidden under `body.begin` anyway, but the
+  // click lifts that a beat before `enter()` runs, and nothing should show in between.
+  for (const button of dock.children) button.style.opacity = '0';
+  const enter = () => enterDock(menuBtn, [...dock.querySelectorAll('.is-icon')]);
+
+  if (!menu) return { setWide, enter, menuBtn };
   for (const [key, icon] of MENU_ORDER) {
     if (!keys.includes(key)) continue;
     const item = document.createElement('button');
@@ -442,6 +522,82 @@ function buildDock(dock, keys, anchors, onSound) {
     menu.appendChild(item);
   }
   setupMenu(menu, menuBtn);
+  return { setWide, enter, menuBtn };
+}
+
+/**
+ * The phone's intro blurb, born out of the Menu button: once the pill has landed, a
+ * bubble rises from it, swells into a small disc and slides to the pane's bottom-left
+ * corner, where it opens up and to the right into the pane, the text fading in once
+ * there is room for it. Nothing on a desktop, where the blurb is not a pane.
+ */
+function enterBlurb(el, menuBtn, { delay = 800, duration = 1400 } = {}) {
+  if (!el) return null;
+  const circle = 44;
+  const pane = DOMRect.fromRect(el.getBoundingClientRect());
+  // Measured as laid out: on the way back from an orbit the pane is still slid down
+  // by `body.orbiting`'s transform (see index.html), which the rect would include.
+  const matrix = new DOMMatrix(getComputedStyle(el).transform);
+  pane.x -= matrix.e;
+  pane.y -= matrix.f;
+  const from = { x: 0, y: 0 };
+  if (menuBtn) {
+    // Measured untransformed — the button's own droplet has it at scale(0) right now,
+    // so its client rect is a point — and aimed at where that droplet's disc sits: the
+    // pill's left end. The bubble's disc rests in the pane's bottom-left corner; this
+    // puts its centre on the button's disc centre.
+    const parent = menuBtn.offsetParent?.getBoundingClientRect() ?? { left: 0, top: 0 };
+    const left = parent.left + menuBtn.offsetLeft;
+    const top = parent.top + menuBtn.offsetTop;
+    const size = menuBtn.offsetHeight;
+    from.x = left + size / 2 - (pane.left + circle / 2);
+    from.y = top + size / 2 - (pane.bottom - circle / 2);
+  }
+  const drop = dropIn(el, {
+    width: pane.width,
+    height: pane.height,
+    circle,
+    // About its own centre, so the disc grows in place on the button rather than
+    // off one corner; the pane's left and bottom are pinned by the stylesheet, so the
+    // opening still spreads up and to the right.
+    origin: 'center',
+    from,
+    travel: true,
+    delay,
+    label: [...el.children],
+    duration,
+  });
+  drop.then(() => { el.style.opacity = ''; });
+  return drop;
+}
+
+/**
+ * The dock's entrance, played once as the intro flight starts. Menu arrives as the
+ * droplet (`dropIn`), then the round buttons pop out of it in turn, each from inside
+ * the one before it (42px plus the 10px gap), with a glint of brightness as it clears.
+ */
+function enterDock(menuBtn, icons) {
+  dropIn(menuBtn, {
+    width: menuBtn.offsetWidth,
+    height: menuBtn.offsetHeight,
+    label: menuBtn.querySelector('span'),
+  }).then(() => { menuBtn.style.opacity = ''; });
+
+  icons.forEach((icon, i) => {
+    if (typeof icon.animate !== 'function' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      icon.style.opacity = '';
+      return;
+    }
+    const pop = icon.animate([
+      { offset: 0, transform: 'translateX(-52px) scale(.25)', opacity: 0, filter: 'brightness(1)' },
+      { offset: 0.5, transform: 'translateX(-14px) scale(.9)', opacity: 1, filter: 'brightness(1.6)' },
+      { offset: 1, transform: 'translateX(0) scale(1)', opacity: 1, filter: 'brightness(1)' },
+    ], { duration: 650, delay: 900 + 260 * i, easing: SPRING_OVER, fill: 'both' });
+    pop.onfinish = () => {
+      pop.cancel();
+      icon.style.opacity = '';
+    };
+  });
 }
 
 /**
@@ -450,9 +606,30 @@ function buildDock(dock, keys, anchors, onSound) {
  */
 let closeMenu = () => {};
 function setupMenu(menu, button) {
+  // The sheet opens as a droplet from the corner nearest the button — below it on a
+  // desktop, above it on a phone — the rows fading in as it fills out. The stylesheet's
+  // own transition still takes it away; a sheet closed mid-arrival drops the droplet.
+  let opening = null;
   const set = (on) => {
+    const was = menu.classList.contains('is-open');
     menu.classList.toggle('is-open', on);
     button.setAttribute('aria-expanded', String(on));
+    if (on && !was) {
+      opening?.cancel();
+      opening = dropIn(menu, {
+        width: menu.offsetWidth,
+        height: menu.offsetHeight,
+        circle: 44,
+        origin: SHEET.matches ? 'left bottom' : 'left top',
+        label: [...menu.children],
+        soft: true,
+        duration: 520,
+        reveal: { step: 30, ms: 140, lead: 200 },
+      });
+    } else if (!on && opening) {
+      opening.cancel();
+      opening = null;
+    }
   };
   closeMenu = () => set(false);
   button.addEventListener('click', () => set(!menu.classList.contains('is-open')));

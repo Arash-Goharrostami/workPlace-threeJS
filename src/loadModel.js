@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { replaceDesks } from './replaceDesks.js';
 import { replaceChair } from './replaceChair.js';
-import { loadGLB } from './gltfLoader.js';
+import { loadGLB, prefetchGLB } from './gltfLoader.js';
 import { materialsOf } from './materials.js';
 import { darkenScene } from './darkenScene.js';
 import { extendBackWall } from './extendBackWall.js';
@@ -46,14 +46,65 @@ import { addPowerStrips } from './powerStrips.js';
 import { addCableHolders } from './cableHolders.js';
 import { addScreenbarRemote } from './screenbarRemote.js';
 import { addAirPodsMax } from './airpodsMax.js';
+import { addRubiksCube } from './rubiksCube.js';
 import { addFloorSocket } from './floorSocket.js';
 import { applyHomeView } from './homeView.js';
 import { preloadAudio } from './preload.js';
 import { STARTUP_URL } from './overlay.js';
 import { CLIP_URL as TYPING_URL } from './typingPrompt.js';
 import { CLIP_URL as PRINTER_URL } from './printerSound.js';
+import { MODEL_URL as DESK_URL } from './replaceDesks.js';
+import { MODEL_URL as CHAIR_URL } from './replaceChair.js';
+import { MODEL_URL as MACBOOK_URL } from './macbook.js';
+import { LITE_URL as DISPLAY_LITE_URL } from './proDisplay.js';
+import { MODEL_URL as USB_CABLE_URL } from './usbCable.js';
+import { MODEL_URL as MAINS_CABLE_URL } from './mainsCable.js';
+import { MODEL_URL as SCREENBAR_URL } from './screenbar.js';
+import { MODEL_URL as STICKY_NOTES_URL } from './stickyNotes.js';
+import { MODEL_URL as PRINTER_MODEL_URL } from './printer.js';
+import { MODEL_URL as PAPER_TABLET_URL } from './paperTablet.js';
+import { MODEL_URL as BOOKS_URL } from './books.js';
+import { MODEL_URL as BOOKS_SET_URL } from './booksSet.js';
+import { MODEL_URL as PEN_DISPLAY_URL } from './penDisplay.js';
+import { FIGURES } from './figurines.js';
+import { MODEL_URL as MUG_URL } from './blenderMug.js';
+import { MODEL_URL as FILAMENT_SPOOLS_URL } from './filamentSpools.js';
+import { MODELS as APPLE_MODELS } from './deskApple.js';
+import { MODEL_URL as SCREENBAR_REMOTE_URL } from './screenbarRemote.js';
+import { MODEL_URL as AIRPODS_URL } from './airpodsMax.js';
+import { KEYBOARD_URL, TRACKPAD_URL } from './peripherals.js';
+import { MODEL_URL as MOUSE_URL } from './mouseArea.js';
+import { MODEL_URL as MAC_PRO_URL } from './macPro.js';
+import { MODEL_URL as CABLE_HOLDER_URL } from './cableHolders.js';
+import { MODEL_URL as FLOOR_SOCKET_URL } from './floorSocket.js';
+import { MODEL_URL as WALL_OUTLET_URL } from './wallOutlet.js';
+import { MODEL_URL as WALL_FRAMES_URL } from './wallFrames.js';
+import { MODEL_URL as POWER_STRIP_URL } from './powerStrips.js';
+import { MODEL_URL as MAC_PRO_CABLE_URL } from './macProCable.js';
+import { MODEL_URL as BLIND_URL } from './blind.js';
+import { MODEL_URL as GUITAR_URL } from './guitar.js';
+import { MODEL_URL as DUMBBELLS_URL } from './dumbbells.js';
+import { MODEL_URL as CARPET_URL } from './carpet.js';
 
 const MODEL_URL = 'models/workplace.glb';
+
+/**
+ * Every prop's model, in the order the chain below places them, so their downloads
+ * are all under way while the room itself is still coming in (`prefetchGLB`). The
+ * chain stays sequential — each prop is put down against the last — but it no longer
+ * waits on the network for each one, only on the decode. The URLs are the modules'
+ * own constants, so a renamed model still has one place to change. The Rubik's cube
+ * is left out (preloaded by index.html for the loading screen, so already cached),
+ * as is the display's full model, which is fetched behind its lite on purpose.
+ */
+const PROP_MODELS = [
+  DESK_URL, MACBOOK_URL, DISPLAY_LITE_URL, USB_CABLE_URL, SCREENBAR_URL, STICKY_NOTES_URL,
+  PRINTER_MODEL_URL, PAPER_TABLET_URL, BOOKS_URL, BOOKS_SET_URL, PEN_DISPLAY_URL,
+  ...FIGURES.map((figure) => figure.url), MUG_URL, FILAMENT_SPOOLS_URL, MAINS_CABLE_URL,
+  ...Object.values(APPLE_MODELS), SCREENBAR_REMOTE_URL, AIRPODS_URL, KEYBOARD_URL, TRACKPAD_URL,
+  MOUSE_URL, MAC_PRO_URL, CABLE_HOLDER_URL, FLOOR_SOCKET_URL, WALL_OUTLET_URL, WALL_FRAMES_URL,
+  POWER_STRIP_URL, MAC_PRO_CABLE_URL, BLIND_URL, GUITAR_URL, DUMBBELLS_URL, CARPET_URL, CHAIR_URL,
+];
 
 /**
  * Loads the converted Workplace model, recenters it on the origin and frames
@@ -88,6 +139,7 @@ const OBJECTS = [
   'apple gear',
   'screenbar remote',
   'airpods max',
+  'rubiks cube',
   'peripherals',
   'mouse',
   'mac pro',
@@ -132,6 +184,7 @@ export function loadModel({ scene, camera, controls, environment, ui }) {
     report();
   });
 
+  prefetchGLB(PROP_MODELS);
   return new Promise((resolve) => {
     loadGLB(MODEL_URL, (event) => {
       if (event.lengthComputable) {
@@ -188,7 +241,7 @@ export function loadModel({ scene, camera, controls, environment, ui }) {
         applyWallMaterials(model);
         applyFloorMaterial(model);
         // The window wall's skirting overshoots the wall at both ends; trim it to fit.
-        dressSkirting(model);
+        dressSkirting(model, backWall ?? undefined);
 
         const removed = clearProps(model);
         if (removed.length) console.info(`[props] cleared: ${removed.join(', ')}`);
@@ -296,6 +349,10 @@ export function loadModel({ scene, camera, controls, environment, ui }) {
           }));
           await place('airpods max', addAirPodsMax(model).catch((error) => {
             console.warn('[airpods max] failed to load:', error);
+          }));
+          // The mirror cube standing on the right of the desk, at an authored spot of its own.
+          await place('rubiks cube', addRubiksCube(model).catch((error) => {
+            console.warn('[rubiks cube] failed to load:', error);
           }));
           const mat = addDeskMat(model, swap.desk);
           await place('peripherals', addPeripherals(model, mat).catch((error) => {

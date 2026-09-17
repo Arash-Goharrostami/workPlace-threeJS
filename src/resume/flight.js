@@ -39,6 +39,27 @@ const DRIFT = 0.1;
  */
 const DRIFT_EASE = 0.35;
 
+/**
+ * A flight is a straight line unless its two ends sit on headings about the room more
+ * than `ARC_FROM` apart — the wide shot orbits all the way round, so a trip down to the
+ * desk can start behind the back wall, and a straight line from there goes through
+ * the concrete. Such a flight is flown as an arc instead: it swings round the room at
+ * its starting distance before closing in, and rises by up to `ARC_LIFT` (degrees of
+ * polar, so smaller is higher) at the midpoint so it clears the wall's top as well.
+ */
+const ARC_FROM = THREE.MathUtils.degToRad(60);
+const ARC_LIFT = THREE.MathUtils.degToRad(25);
+/** The share of an arc flown before the distance and height start to close on the end. */
+const ARC_HOLD = 0.35;
+
+/**
+ * How close the wheel may come in the wide shot, as a share of that shot's own
+ * distance. The room's floor (`dolly.min`) is sized for orbiting inside the room;
+ * from outside it lets the camera through a wall. The wide fit is about 2.4× the
+ * room's bounding radius, so this still stops outside every wall.
+ */
+const WIDE_DOLLY_IN = 0.55;
+
 /** …and of the room's default angle, when nothing is open. */
 const OVERVIEW_AZIMUTH = THREE.MathUtils.degToRad(75);
 
@@ -133,6 +154,27 @@ export function setupFlight({ camera, controls, canvas }) {
   };
 
   /**
+   * Builds the flight from where the camera is now to `camTo`/`tgtTo`, and decides
+   * whether it is a line or an arc (see `ARC_FROM`): the spherical coordinates of both
+   * ends about their targets, the azimuth delta wrapped to the short way round.
+   */
+  const startFlight = ({ camTo, tgtTo, voffTo, duration }) => {
+    const camFrom = camera.position.clone();
+    const tgtFrom = controls.target.clone();
+    const from = new THREE.Spherical().setFromVector3(camFrom.clone().sub(tgtFrom));
+    const end = new THREE.Spherical().setFromVector3(camTo.clone().sub(tgtTo));
+    let delta = end.theta - from.theta;
+    delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+    flight = {
+      camFrom, tgtFrom, camTo, tgtTo,
+      voffFrom: voff, voffTo,
+      start: performance.now(),
+      duration,
+      arc: Math.abs(delta) > ARC_FROM ? { from, end, delta } : null,
+    };
+  };
+
+  /**
    * Flies to `anchor`, or back to the overview when passed nothing. `panelWidth` is
    * how much of the viewport the open sidebar covers: the camera stays on the prop's
    * own axis and the *lens* shifts instead, so the prop lands in the free half
@@ -153,16 +195,7 @@ export function setupFlight({ camera, controls, canvas }) {
       camTo.sub(tgtTo).multiplyScalar(pullback).add(tgtTo);
     }
 
-    flight = {
-      camFrom: camera.position.clone(),
-      tgtFrom: controls.target.clone(),
-      camTo,
-      tgtTo,
-      voffFrom: voff,
-      voffTo,
-      start: performance.now(),
-      duration: anchor ? FLIGHT_MS : RETURN_MS,
-    };
+    startFlight({ camTo, tgtTo, voffTo, duration: anchor ? FLIGHT_MS : RETURN_MS });
     open = anchor ?? null;
     openDist = anchor ? camTo.distanceTo(tgtTo) : 0;
     wideView = false;
@@ -178,33 +211,18 @@ export function setupFlight({ camera, controls, canvas }) {
   const fly = (cam, tgt, view) => {
     overview = { cam: cam.clone(), tgt: tgt.clone(), view };
     overviewAzimuth = Math.atan2(cam.x - tgt.x, cam.z - tgt.z);
+    // The overview is as far out as the wheel goes from now on: the wide shot is
+    // reached by a click, not by zooming out to it.
+    dolly.max = cam.distanceTo(tgt);
     wideView = false;
-    flight = {
-      camFrom: camera.position.clone(),
-      tgtFrom: controls.target.clone(),
-      camTo: cam.clone(),
-      tgtTo: tgt.clone(),
-      voffFrom: voff,
-      voffTo: 0,
-      start: performance.now(),
-      duration: FLIGHT_MS,
-    };
+    startFlight({ camTo: cam.clone(), tgtTo: tgt.clone(), voffTo: 0, duration: FLIGHT_MS });
     open = null;
     openDist = 0;
   };
 
   /** Back up to the wide shot, with nothing open; the overview stays where it is. */
   const toWide = () => {
-    flight = {
-      camFrom: camera.position.clone(),
-      tgtFrom: controls.target.clone(),
-      camTo: wide.cam.clone(),
-      tgtTo: wide.tgt.clone(),
-      voffFrom: voff,
-      voffTo: 0,
-      start: performance.now(),
-      duration: FLIGHT_MS,
-    };
+    startFlight({ camTo: wide.cam.clone(), tgtTo: wide.tgt.clone(), voffTo: 0, duration: FLIGHT_MS });
     open = null;
     openDist = 0;
     wideView = true;
@@ -237,8 +255,22 @@ export function setupFlight({ camera, controls, canvas }) {
     if (flight) {
       const t = Math.min(1, (performance.now() - flight.start) / flight.duration);
       const e = ease(t);
-      camera.position.lerpVectors(flight.camFrom, flight.camTo, e);
       controls.target.lerpVectors(flight.tgtFrom, flight.tgtTo, e);
+      if (flight.arc) {
+        // Round, not through: the heading sweeps over the whole flight, while the
+        // distance and height hold for `ARC_HOLD` of it and only then close on the
+        // end, so the swing happens out at the wide radius; a lift peaking midway
+        // takes the pass over the wall's top as well.
+        const { from, end, delta } = flight.arc;
+        const e2 = ease(THREE.MathUtils.clamp((t - ARC_HOLD) / (1 - ARC_HOLD), 0, 1));
+        const radius = from.radius + (end.radius - from.radius) * e2;
+        const polar = from.phi + (end.phi - from.phi) * e2 - ARC_LIFT * Math.sin(Math.PI * t);
+        camera.position
+          .setFromSphericalCoords(radius, Math.max(0.05, polar), from.theta + delta * e)
+          .add(controls.target);
+      } else {
+        camera.position.lerpVectors(flight.camFrom, flight.camTo, e);
+      }
       voff = flight.voffFrom + (flight.voffTo - flight.voffFrom) * e;
       applyOffset();
       if (t >= 1) flight = null;
@@ -262,6 +294,8 @@ export function setupFlight({ camera, controls, canvas }) {
       controls.minDistance = 0;
       controls.maxDistance = Infinity;
     } else if (open) {
+      // Drag up looks down on the prop — the camera rises over it, not under it.
+      controls.rotateSpeed = 1;
       const centre = Math.atan2(open.cam.x - open.tgt.x, open.cam.z - open.tgt.z);
       controls.minAzimuthAngle = centre - OPEN_AZIMUTH;
       controls.maxAzimuthAngle = centre + OPEN_AZIMUTH;
@@ -270,13 +304,36 @@ export function setupFlight({ camera, controls, canvas }) {
       // how far the prop stands above or below the camera is part of how it is framed.
       const rise = new THREE.Vector3().subVectors(open.cam, open.tgt);
       const level = Math.acos(THREE.MathUtils.clamp(rise.y / rise.length(), -1, 1));
-      controls.minPolarAngle = Math.max(polar.min, level - OPEN_POLAR);
+      // Not clipped by the room's ceiling: the band is measured off the anchor's own
+      // angle, and the phone is read from nearly straight above — well past that
+      // ceiling — so clipping left it no band at all and no way to tilt. The floor
+      // still holds, so the camera cannot sink under the desk.
+      controls.minPolarAngle = Math.max(0, level - OPEN_POLAR);
       controls.maxPolarAngle = Math.min(polar.max, level + OPEN_POLAR);
 
-      // The wheel steps away from the prop and back, not out into the room.
+      // The wheel steps away from the prop and back, not out into the room. Capped
+      // at the wide shot's own distance rather than the desk view's: the mural on the
+      // outer wall is framed from further off than the desk is, and the desk cap
+      // pulled the camera into it the moment the flight landed.
       controls.minDistance = nearLimit();
-      controls.maxDistance = Math.min(dolly.max, openDist * OPEN_DOLLY.out);
+      controls.maxDistance = Math.min(wide.cam.distanceTo(wide.tgt), openDist * OPEN_DOLLY.out);
+    } else if (wideView) {
+      const wideDist = wide.cam.distanceTo(wide.tgt);
+      // From outside, a drag reads as turning the room in the hand, so the wide shot
+      // keeps the stock sense; the desk view alone is inverted (see `main.js`).
+      controls.rotateSpeed = 1;
+      // The wide shot of the whole room orbits freely, all the way round.
+      controls.minAzimuthAngle = -Infinity;
+      controls.maxAzimuthAngle = Infinity;
+      controls.minPolarAngle = polar.min;
+      controls.maxPolarAngle = polar.max;
+      // Stopped short of the walls, not at the room's own floor (see `WIDE_DOLLY_IN`).
+      controls.minDistance = Math.max(dolly.min, wideDist * WIDE_DOLLY_IN);
+      // The wide shot sits beyond the overview's zoom-out; while the camera is up
+      // there the cap is lifted to it, or the landing would pull it straight back in.
+      controls.maxDistance = Math.max(dolly.max, wideDist);
     } else {
+      controls.rotateSpeed = -1;
       controls.minAzimuthAngle = overviewAzimuth - OVERVIEW_AZIMUTH;
       controls.maxAzimuthAngle = overviewAzimuth + OVERVIEW_AZIMUTH;
       controls.minPolarAngle = polar.min;
@@ -287,6 +344,21 @@ export function setupFlight({ camera, controls, canvas }) {
   };
 
   return {
+    /**
+     * Closes the room's zoom-out at wherever the camera is now — from here on, with
+     * nothing open, the wheel only goes closer — and, given `minPolar` in radians,
+     * how high the orbit may climb. `main.js` calls it the moment the opening descent
+     * lands: the home view is as far out as the room ever gets, and the descent itself,
+     * which starts higher than that, is not clamped on its way in.
+     */
+    lockZoomOut(minPolar = polar.min) {
+      dolly.max = controls.getDistance();
+      polar.min = minPolar;
+      if (!flight && !open) {
+        controls.maxDistance = dolly.max;
+        controls.minPolarAngle = polar.min;
+      }
+    },
     to,
     fly,
     toWide,
@@ -304,5 +376,7 @@ export function setupFlight({ camera, controls, canvas }) {
     },
     get overviewLabel() { return overview.view; },
     get atOverview() { return atOverview(); },
+    /** Whether the room is resting at (or flying to) the wide shot rather than the desk. */
+    get wideView() { return wideView; },
   };
 }

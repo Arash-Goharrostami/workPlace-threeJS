@@ -13,7 +13,7 @@ import { steelMaterial } from './deskAccessories.js';
  * source, so it is all read back off the loaded bounds.
  */
 
-const MODEL_URL = 'models/blindCurtain.glb';
+export const MODEL_URL = 'models/blindCurtain.glb';
 
 /**
  * How far inside the glazing the blind is held, all round. The window's frame

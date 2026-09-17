@@ -18,7 +18,7 @@ import { loadGLB } from './gltfLoader.js';
  * material tint can lift to silver, so the bake itself is re-tinted (see `silverTexture`).
  */
 
-const MODEL_URL = 'models/airPodsMax.glb';
+export const MODEL_URL = 'models/airPodsMax.glb';
 
 /** A real pair, ear cup to ear cup. What the import is scaled to fit. */
 const REAL_WIDTH = 16.84;

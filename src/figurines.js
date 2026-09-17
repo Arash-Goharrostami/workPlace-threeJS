@@ -48,7 +48,7 @@ import { loadGLB } from './gltfLoader.js';
  * `recolour` remaps a named material's bake onto a ramp from `shadow` to `highlight`,
  * by luminance — the two colours are the knobs.
  */
-const FIGURES = [
+export const FIGURES = [
   { name: 'Hollow_Knight', url: 'models/hollowKnight.glb', height: 8.7, position: [0.2, 100.4, -107.9], rotation: [0, -18.9, 0] },
   {
     // Moved off the desk's far corner to stand beside the Knight once her plinth was

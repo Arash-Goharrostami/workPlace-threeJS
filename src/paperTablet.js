@@ -30,7 +30,7 @@ import { drawPortfolioPage } from './resume/portfolioPage.js';
  * came out mirrored top-to-bottom.
  */
 
-const MODEL_URL = 'models/paperTablet.glb';
+export const MODEL_URL = 'models/paperTablet.glb';
 
 /** The material on the page mesh, as the converter spells it (`Material.002` in the source). */
 const PAGE_MATERIAL = 'Material_002';

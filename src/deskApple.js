@@ -60,7 +60,7 @@ const WATCH_REPAINT = {
   White: { color: 0x18181a, roughness: 0.8, metalness: 0 },
 };
 
-const MODELS = {
+export const MODELS = {
   ipad: 'models/ipadPro.glb',
   pencil: 'models/applePencil.glb',
   watch: 'models/appleWatchSe.glb',

@@ -15,10 +15,10 @@
 
 export const PROFILE = {
   name: 'Arash Goharrostami',
-  role: 'Software Engineer',
+  role: 'Full-Stack Developer',
   blurb:
-    'Software Engineer — full-stack and backend systems. Five years building scalable ' +
-    'web, mobile and real-time services. Tehran, Iran.',
+    'Full-Stack Developer — web, backend and real-time services. Five years building ' +
+    'scalable products in TypeScript and Node.js. Tehran, Iran.',
   email: 'arash.goharrostami@gmail.com',
 };
 
@@ -141,37 +141,82 @@ export const SECTIONS = {
             desc:
               'Iran-wide marketplace for villas, suites and apartments: guests search by ' +
               'destination, dates and party size, and hosts list, price and manage their ' +
-              'own properties.',
-            tags: ['NestJS', 'TypeScript', 'MongoDB', 'Redis', 'Docker'],
+              'own properties. The backend is a set of services — the original Laravel ' +
+              'application and a NestJS service on PostgreSQL, plus a small Express ' +
+              'service for chat and support on MongoDB — calling each other over ' +
+              'RabbitMQ, with Redis as the cache layer and Nginx balancing traffic across ' +
+              'two servers. I owned booking and search, and the performance work that ' +
+              'let it grow past 50,000 registered users.',
+            tags: [
+              { name: 'NestJS', icon: 'nestjs' },
+              { name: 'TypeScript', icon: 'typescript' },
+              { name: 'Laravel', icon: 'laravel' },
+              { name: 'PHP', icon: 'php' },
+              { name: 'Express', icon: 'express' },
+              { name: 'JavaScript', icon: 'javascript' },
+              { name: 'PostgreSQL', icon: 'postgresql' },
+              { name: 'MongoDB', icon: 'mongodb' },
+              { name: 'RabbitMQ', icon: 'rabbitmq' },
+              { name: 'Redis', icon: 'redis' },
+              { name: 'Nginx', icon: 'nginx' },
+              { name: 'Docker', icon: 'docker' },
+            ],
             points: [
-              'Built the booking core — availability calendars, per-night and seasonal pricing, and reservation state from request through confirmation to cancellation.',
-              'Search and filtering across listings by destination, dates, capacity and property type, on MongoDB indexes shaped for those queries.',
-              'Host-side APIs for listing, pricing, calendar and reservations, on the same contracts the guest clients use.',
-              'Cut API response time 65% through query optimisation, better data-access patterns and caching.',
-              'Reduced database query latency 40% by reworking MongoDB queries and indexes.',
-              'Designed service boundaries so core components ship independently.',
-              'Supported scaling to 50,000+ registered users at stable API performance.',
-              'Lowered infrastructure cost 30% through resource and deployment optimisation.',
+              'Booking core: availability calendars, seasonal pricing and the reservation state machine.',
+              'Listing search by destination, dates, capacity and type on purpose-built PostgreSQL indexes.',
+              'Services split by domain and wired over RabbitMQ; chat and support on their own Express service.',
+              'Redis caching and query work: API response time down 65%, query latency down 40%.',
+              'Nginx in front of two servers for load balancing and failover; infrastructure cost down 30%.',
             ],
           },
           {
             date: 'Jan 2024 — Dec 2024',
             role: 'Software Engineer — Full-stack & Mobile',
             org: 'Senjed — school transportation super app',
-            tags: ['Microservices', 'Socket.io', 'RabbitMQ', 'React Native'],
+            desc:
+              'A platform for school transport with three sides to it — drivers, parents ' +
+              'and the transport companies — built around live vehicle tracking. A core ' +
+              'Express backend in JavaScript with the real-time and event services ' +
+              'around it on RabbitMQ, deployed on Kubernetes; a React and TypeScript web ' +
+              'front with the operations dashboard; and an Android app for each role. I ' +
+              'built the real-time backbone and worked across the backend, the dashboard ' +
+              'and the apps.',
+            tags: [
+              { name: 'Express', icon: 'express' },
+              { name: 'JavaScript', icon: 'javascript' },
+              { name: 'React', icon: 'react' },
+              { name: 'TypeScript', icon: 'typescript' },
+              { name: 'RabbitMQ', icon: 'rabbitmq' },
+              { name: 'Microservices', icon: 'microservices' },
+              { name: 'Socket.io', icon: 'socket-io' },
+              { name: 'React Native', icon: 'react-native' },
+              { name: 'Kubernetes', icon: 'kubernetes' },
+              { name: 'Docker', icon: 'docker' },
+            ],
             points: [
-              'Real-time vehicle tracking over WebSockets holding 10,000+ concurrent connections.',
-              'Event-driven backbone on RabbitMQ processing 1M+ events per day.',
-              'APIs and clients across web, Android and iOS for a four-role platform.',
-              'Optimised high-frequency location streaming and client update traffic.',
+              'Live vehicle tracking over WebSockets holding 10,000+ concurrent connections.',
+              'Event-driven services on RabbitMQ processing 1M+ events a day.',
+              'React + TypeScript dashboard for companies: routes, drivers, students and live buses.',
+              'Android apps for drivers, parents and companies on one shared API.',
+              'Containerised services deployed and scaled on Kubernetes.',
             ],
           },
           {
             date: 'Mar 2023 — Oct 2023',
             role: 'Software Engineer — Full-stack',
             org: 'UniFars — marketplace platform',
+            desc:
+              'A general classifieds marketplace with categories, listings and search. I ' +
+              'shaped the data model and the REST API around fast listing search, built ' +
+              'the responsive frontend features and set up the Docker-based release pipeline.',
+            tags: [
+              { name: 'Node.js', icon: 'nodejs' },
+              { name: 'MongoDB', icon: 'mongodb' },
+              { name: 'React', icon: 'react' },
+              { name: 'Docker', icon: 'docker' },
+            ],
             points: [
-              'MongoDB schemas, indexes and query patterns for fast listing search and filtering.',
+              'MongoDB schemas, indexes and query patterns for fast search and filtering.',
               'REST APIs for users, listings, categories, search and marketplace workflows.',
               'Responsive frontend features and Docker-based CI/CD releases.',
             ],
@@ -180,11 +225,22 @@ export const SECTIONS = {
             date: 'May 2022 — Jan 2023',
             role: 'Software Engineer — Backend, Web & Android',
             org: 'Kavaran — voting & polling platform',
+            desc:
+              'Votes, polls and live results for organisations. I designed the hybrid ' +
+              'SQL/NoSQL storage — transactional on the vote, scalable on the aggregation — ' +
+              'and the real-time results channel, and shipped the web management console ' +
+              'and the Android client on the same contracts.',
+            tags: [
+              { name: 'Node.js', icon: 'nodejs' },
+              { name: 'PostgreSQL', icon: 'postgresql' },
+              { name: 'MongoDB', icon: 'mongodb' },
+              { name: 'WebSockets', icon: 'websocket' },
+              { name: 'Kotlin', icon: 'kotlin' },
+            ],
             points: [
-              'Hybrid SQL/NoSQL models for transactional voting and scalable result aggregation.',
-              'Real-time vote tracking and live results without client polling.',
-              'Concurrency-safe voting workflows built for data consistency.',
-              'Web management interfaces plus the Android client on the same API contracts.',
+              'Hybrid SQL/NoSQL models: transactional voting, scalable result aggregation.',
+              'Concurrency-safe voting workflows with live results and no client polling.',
+              'Web management interfaces plus the Android client on one API.',
             ],
           },
         ],
@@ -194,25 +250,106 @@ export const SECTIONS = {
         kind: 'cards',
         items: [
           {
-            title: 'Distributed Notification Service',
-            tags: ['Node.js', 'TypeScript', 'RabbitMQ'],
-            desc: 'Event-driven notification architecture that decouples delivery from application services and handles messages asynchronously.',
+            meta: 'Side project · this room',
+            title: 'The room you are standing in',
+            tags: [
+              { name: 'three.js', icon: 'three-js' },
+              { name: 'WebGL', icon: 'webgl' },
+              { name: 'Vite', icon: 'vite' },
+              { name: 'Blender', icon: 'blender' },
+            ],
+            desc:
+              'A CV nobody has to scroll: my actual desk, modelled and rendered in the ' +
+              'browser, where the props are the sections and the screens draw their own ' +
+              'pages. Built to find out how far a résumé can go before it stops being one.',
+            points: [
+              'Click any prop and the camera flies to it; its screen or sheet opens the section.',
+              'The monitors render live canvas pages — the CV, a notes app, a terminal.',
+              '40 models re-cut and Draco-compressed to a 6 MB room; loads in parallel.',
+              'Cached shadows, an idle frame cap and a phone layout keep it smooth on mobile.',
+              'A mirror-cube loading screen you can scramble and solve by hand.',
+            ],
           },
           {
-            title: 'Real-Time Chat Service',
-            tags: ['WebSockets', 'Socket.io', 'Redis'],
-            desc: 'Messaging backend for persistent connections, reliable delivery and horizontal scaling across clients.',
+            meta: 'Side project · low level',
+            title: 'Chess engine',
+            tags: [
+              { name: 'C++', icon: 'c-plus-plus' },
+              { name: 'Assembly', icon: 'assembly' },
+            ],
+            desc:
+              'Written to see what the compiler was doing for me: a full engine in C++, ' +
+              'then the hot loops torn out and rewritten by hand in x86 Assembly, timed ' +
+              'against the code they replaced.',
+            points: [
+              'Bitboard board state with legal move generation, castling, en passant, promotion.',
+              'Alpha-beta search with move ordering, iterative deepening and a transposition table.',
+              'Popcount, bit scans and the evaluation loop in Assembly, benchmarked side by side.',
+              'Plays from the terminal, against itself or a person, with a perft suite to prove the rules.',
+            ],
           },
           {
-            title: 'Payment Service Architecture',
-            tags: ['Microservices', 'TypeScript'],
-            desc: 'Payment processing split into independently deployable services, focused on transaction workflows, isolation and reliability.',
+            meta: 'Side project · networking',
+            title: 'Home DNS resolver',
+            tags: [
+              { name: 'Python', icon: 'python' },
+              { name: 'Linux', icon: 'linux' },
+            ],
+            desc:
+              'My own DNS server, from the wire format up, sitting in front of every ' +
+              'device in the house. The reason none of them has seen a Spotify or ' +
+              'YouTube ad in years.',
+            points: [
+              'Parses and answers raw DNS packets; caches by TTL; forwards what it does not know.',
+              'Network-wide blocklists — ads, trackers, telemetry — kept per device or per network.',
+              'Ad-free Spotify and YouTube on phones, TVs and laptops with nothing installed on them.',
+              'Local names for the machines on the LAN, and a query log to see who talks to whom.',
+            ],
+          },
+          {
+            meta: 'Side project · hardware',
+            title: 'Hand-built keyboard',
+            tags: [
+              { name: 'C', icon: 'c' },
+              { name: 'Git', icon: 'git' },
+            ],
+            desc:
+              'When my keyboard died I built the replacement instead of buying one: a ' +
+              'hand-wired board on a microcontroller, with the open-source firmware forked ' +
+              'and edited into the layout I actually type on. This page was written on it.',
+            points: [
+              'Firmware edited to its own matrix, pinout and key layout.',
+              'Layers for symbols, navigation and media under the home row; a dedicated Farsi layer.',
+              'Macros and tap-hold keys for the shortcuts I hit a hundred times a day.',
+              'Flashed and re-flashed from a single make target as the layout evolved.',
+            ],
+          },
+          {
+            meta: 'Side project · self-hosting',
+            title: 'Home storage server',
+            tags: [
+              { name: 'Linux', icon: 'linux' },
+              { name: 'Docker', icon: 'docker' },
+              { name: 'Bash', icon: 'bash' },
+            ],
+            desc:
+              'A personal NAS on the local network — a Linux box that every device in the ' +
+              'house sees as its own drive, and where the rest of these projects live.',
+            points: [
+              'Shared storage over SMB and NFS for Macs, phones, the TV and the printer.',
+              'Media, backups and the DNS resolver each in their own container.',
+              'Scheduled snapshot backups with retention, restorable file by file.',
+              'Reachable only on the LAN; nothing forwarded to the internet.',
+            ],
           },
         ],
       },
       {
         kind: 'footnote',
-        text: 'Also: web and admin platforms in React and Next.js, native iOS in Swift and SwiftUI, and cross-platform apps in React Native.',
+        text:
+          'Also: web and admin platforms in React and Next.js, native iOS in Swift and ' +
+          'SwiftUI, cross-platform apps in React Native — and a habit of fixing what is ' +
+          'in front of me, from ad-free streaming to the network the house runs on.',
       },
     ],
   },
@@ -422,7 +559,7 @@ export const SECTIONS = {
           {
             title: 'Application',
             // Under the group's tiles in the Shortcuts window (`stackApp.js`).
-            footer: 'Native iOS in Swift and SwiftUI, Android in Kotlin, and cross-platform in Dart and React Native.',
+            footer: 'Native iOS in Swift and SwiftUI, Android in Kotlin, cross-platform in Dart and React Native — side interests next to the web work.',
             icon: 'application',
             note: 'Native and cross-platform',
             tags: [
@@ -495,10 +632,20 @@ export const SECTIONS = {
           {
             title: 'Languages',
             // Under the group's tiles in the Shortcuts window (`stackApp.js`).
-            footer: 'B.Sc. Computer Engineering — C, C++ and Assembly from the degree, Python and PHP from the jobs since.',
+            footer: 'B.Sc. Computer Engineering — C, C++ and Assembly from the degree; the rest learnt for the fun of it. Full-stack web is the day job.',
             icon: 'languages',
             note: 'Down to the metal',
             tags: [
+              {
+                name: 'TypeScript',
+                icon: 'typescript',
+                desc: 'The day job — typed JavaScript for backends and clients that have to stay correct as they grow.',
+              },
+              {
+                name: 'JavaScript',
+                icon: 'javascript',
+                desc: 'The language of the browser and of Node — what everything on the web ends up running as.',
+              },
               {
                 name: 'C',
                 icon: 'c',
@@ -538,6 +685,20 @@ export const SECTIONS = {
         text: 'Certified LPIC-3 (Linux Professional Institute) · B.Sc. Computer Engineering.',
       },
     ],
+  },
+
+  story: {
+    // The story of the site, written on the back wall's outer face (`wallStory.js`).
+    // Read on the wall itself: no panel, nothing to scroll — the camera flies up to the
+    // mural and the chalk is the copy. Not in the menu; it is found by walking round.
+    onProp: true,
+    propMode: 'mural',
+    // Read from outside the room, so closing it returns to the wide shot it was found
+    // from rather than to the desk (see `open()` in `index.js`).
+    outside: true,
+    eyebrow: 'About',
+    title: 'About this place',
+    blocks: [],
   },
 
   education: {

@@ -16,7 +16,7 @@ import { loadGLB } from './gltfLoader.js';
  * `npm run shrink -- wallOutlets 1024 85 --only Wall_outlet_007` took it from 46 KB to
  * 6 KB, dropping the light switch that shares the pack. `PART` below is what decides.
  */
-const MODEL_URL = 'models/wallOutlets.glb';
+export const MODEL_URL = 'models/wallOutlets.glb';
 const PART = 'Wall_outlet_007';
 
 /** Where on the wall it sits: X in world units, Y above the floor's top face. */

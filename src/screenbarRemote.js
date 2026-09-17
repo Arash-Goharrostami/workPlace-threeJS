@@ -19,7 +19,7 @@ import { loadGLB } from './gltfLoader.js';
  * `FINISH` keys off came through the compression untouched.
  */
 
-const MODEL_URL = 'models/benqScreenbarRemote.glb';
+export const MODEL_URL = 'models/benqScreenbarRemote.glb';
 
 /**
  * Where the puck ended up, in world centimetres and degrees — set by hand in edit mode and

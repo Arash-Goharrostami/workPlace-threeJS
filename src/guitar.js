@@ -29,7 +29,7 @@ import { loadGLB } from './gltfLoader.js';
  * where the three metallic/roughness maps that were 1 MB of PNG between them cost
  * almost nothing; `--coarse` is 12-bit positions — 0.3 mm on a prop 1.15 m tall.
  */
-const MODEL_URL = 'models/guitarOnStand.glb';
+export const MODEL_URL = 'models/guitarOnStand.glb';
 
 /** Metres (the model's units) to this scene's centimetres. */
 const SCALE = 100;

@@ -30,15 +30,22 @@ const CONCRETE_TEXTURE_SPAN = 280;
 const WALL_TINT = 0x56627e;
 
 /**
- * The same tint, lifted for the side wall. The key light sits outside the room at
- * +x/+z: it falls on the back wall face-on and never reaches the side wall, whose face
- * points -x, so with one colour the side wall reads a step darker. Brightening its
- * tint makes the two walls match without moving the key and every shadow with it.
+ * The same tint, lifted for the faces the key light cannot reach. The key sits outside
+ * the room at +x/+z (see `environment.js`): it falls on the back wall's inside face-on
+ * and never touches the side wall's, nor the back wall's outer face — so with one
+ * colour those read a step darker than the faces beside them. Brightening the tint on
+ * exactly those faces makes the walls match, inside and out, without moving the key
+ * and every shadow with it. It used to go to the whole side wall by name, which
+ * matched the inside and then, from outside the corner, made *its* outer face — the
+ * one the key hits full on — a step lighter than the back wall's.
  */
-const SIDE_WALL_TINT = 0x7a8aab;
+const SHADE_TINT = 0x7a8aab;
 
-/** The wall the key light cannot reach. */
-const SIDE_WALL = 'wall2';
+/**
+ * Where the key shines from — `environment.js` puts it at the room's centre plus
+ * (r, 1.4r, r). A face whose normal leans this way is lit.
+ */
+const KEY_DIR = new THREE.Vector3(1, 1.4, 1).normalize();
 
 const loader = new THREE.TextureLoader();
 
@@ -52,22 +59,54 @@ export function applyWallMaterials(model) {
   if (!walls) return null;
 
   const concrete = makeConcreteMaterial();
-  const sideConcrete = concrete.clone();
-  sideConcrete.name = 'room_concrete_side';
-  sideConcrete.color.setHex(SIDE_WALL_TINT);
+  const shade = concrete.clone();
+  shade.name = 'room_concrete_shade';
+  shade.color.setHex(SHADE_TINT);
 
   for (const child of walls.children) {
     if (NON_WALLS.has(child.name)) continue;
-    const material = child.name === SIDE_WALL ? sideConcrete : concrete;
     child.updateMatrixWorld(true);
     child.traverse((node) => {
       if (!node.isMesh) return;
       addWallUVs(node);
-      node.material = material;
+      splitByLight(node);
+      node.material = [concrete, shade];
     });
   }
 
   return concrete;
+}
+
+/**
+ * Sorts the mesh's triangles into two draw groups by whether the key can reach them:
+ * material 0 for faces leaning toward `KEY_DIR`, 1 for the rest. The triangle order
+ * is what changes — the index is rewritten as one run of lit faces then one of unlit —
+ * so the vertices, UVs and normals stay as they are.
+ */
+function splitByLight(mesh) {
+  const geometry = mesh.geometry;
+  const position = geometry.getAttribute('position');
+  const index = geometry.getIndex()?.array
+    ?? Uint32Array.from({ length: position.count }, (_, i) => i);
+  const normalMatrix = new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld);
+
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const lit = [];
+  const unlit = [];
+  for (let i = 0; i + 2 < index.length; i += 3) {
+    a.fromBufferAttribute(position, index[i]);
+    b.fromBufferAttribute(position, index[i + 1]);
+    c.fromBufferAttribute(position, index[i + 2]);
+    const normal = c.sub(b).cross(a.sub(b)).applyMatrix3(normalMatrix);
+    (normal.dot(KEY_DIR) > 0 ? lit : unlit).push(index[i], index[i + 1], index[i + 2]);
+  }
+
+  geometry.setIndex([...lit, ...unlit]);
+  geometry.clearGroups();
+  geometry.addGroup(0, lit.length, 0);
+  geometry.addGroup(lit.length, unlit.length, 1);
 }
 
 function makeConcreteMaterial() {

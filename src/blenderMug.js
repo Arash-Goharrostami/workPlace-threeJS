@@ -30,7 +30,7 @@ import { loadGLB } from './gltfLoader.js';
  * knowing about them.
  */
 
-const MODEL_URL = 'models/blenderMug.glb';
+export const MODEL_URL = 'models/blenderMug.glb';
 
 /** How tall the mug stands, in this scene's centimetres. */
 const HEIGHT = 9.5;
@@ -43,8 +43,8 @@ const HEIGHT = 9.5;
  * is how it follows.
  */
 const TRANSFORM = {
-  position: [-33.3, 85.4, -83.9],
-  rotation: [0, 25, 0],
+  position: [-38.1, 85.4, -84.3],
+  rotation: [0, -14, 0],
 };
 
 /** A glazed ceramic: the maps carry the print, the finish is a mug's — matte-ish, no metal. */

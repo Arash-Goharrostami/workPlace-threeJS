@@ -3,10 +3,22 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Arash Goharrostami — Software Engineer</title>
+    <title>Arash Goharrostami — Full-Stack Developer</title>
+    <!-- The mirror cube, rendered by `npm run favicon` (scripts/render-favicon.py). -->
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="apple-touch-icon" href="favicon.png" />
+    <!-- The loading screen's cube, fetched ahead of the scripts so it is in by the time
+         three.js can draw it; its decoder too, so the decode is not a second round trip. -->
+    <link rel="preload" href="models/rubiksCube.glb" as="fetch" fetchpriority="high" crossorigin />
+    <link rel="preload" href="draco/draco_decoder.wasm" as="fetch" fetchpriority="high" crossorigin />
+    <!-- The first two on the load's critical path: the room, and the desk everything
+         is placed against. The rest are fetched ahead by `loadModel.js` (`prefetchGLB`). -->
+    <link rel="preload" href="audio/cubeTurns.mp3" as="fetch" crossorigin />
+    <link rel="preload" href="models/workplace.glb" as="fetch" crossorigin />
+    <link rel="preload" href="models/desk.glb" as="fetch" crossorigin />
     <meta
       name="description"
-      content="The workspace of Arash Goharrostami, software engineer — a 3D room you can read as a resume."
+      content="The workspace of Arash Goharrostami, full-stack developer — a 3D room you can read as a resume."
     />
     <style>
       :root {
@@ -41,41 +53,54 @@
       }
       #overlay.hidden { opacity: 0; pointer-events: none; }
       #overlay.error #bar-track { display: none; }
+      /* The mirror cube in the middle of the loading screen, turned by hand — see
+         `loadingCube.js`. Its size is the canvas's CSS size; the renderer follows it. */
+      #loading-cube {
+        position: absolute; left: 50%; top: 50%; width: min(52vmin, 380px); height: min(52vmin, 380px);
+        cursor: grab; touch-action: none;
+        /* Unseen and a little low until it can be drawn; it rises into place, and sinks
+           back the same way once the load is done (`.in` is `loadingCube.js`'s). */
+        opacity: 0; transform: translate(-50%, calc(-50% + 48px));
+        transition: opacity .55s ease, transform .55s cubic-bezier(.2, .8, .2, 1);
+      }
+      #loading-cube.in { opacity: 1; transform: translate(-50%, -50%); }
+      #loading-cube.dragging { cursor: grabbing; }
+      #overlay.welcome #loading-cube, #overlay.begin #loading-cube, #overlay.error #loading-cube { display: none; }
       /* The welcome step: still on the solid backdrop, the loading text gone, a card in
          the middle that says whose place this is and offers Start. */
       #overlay.welcome { place-content: center; padding: 0 20px; }
       #overlay.welcome #bar-track, #overlay.welcome #overlay-text { display: none; }
       #welcome {
         max-width: 380px; padding: 28px 32px 30px; text-align: center; color: var(--ink);
-        transition: transform .35s ease, opacity .35s ease;
+        transition: transform .45s cubic-bezier(.2, .8, .2, 1), opacity .45s ease;
       }
-      /* The card blooms from a faint, smaller version of itself. */
-      #welcome.opening { transform: scale(.85); opacity: 0; }
+      /* The card comes up from below, where the cube went. */
+      #welcome.opening { transform: translateY(48px); opacity: 0; }
       #welcome-kicker { margin: 10px 0 0; font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); }
       #welcome-name { margin: 0; font-size: 26px; line-height: 1.2; letter-spacing: -.01em; font-weight: 600; }
       #welcome-blurb { margin: 14px 0 0; color: var(--ink-dim); font-size: 13.5px; line-height: 1.65; }
-      /* Start: a blue liquid-glass button with rounded corners — the blue shows through a
-         blurred sheen with a bright top edge and a glint, and it lifts a touch under the pointer. */
+      /* Start: a white liquid-glass button with rounded corners — frosted, with a bright
+         top edge and a glint, and it lifts a touch under the pointer. */
       #welcome-start {
         position: relative; overflow: hidden; margin-top: 22px; min-width: 140px; padding: 12px 28px;
         border-radius: 14px; color: #fff; font-weight: 600; letter-spacing: .04em;
-        /* iOS system blue (#0A84FF in dark), brighter toward the bottom edge. */
-        background: radial-gradient(circle at 50% 120%, rgba(64, 156, 255, .95), rgba(10, 132, 255, .82) 60%, rgba(0, 122, 255, .78));
+        /* Frosted white, brighter toward the bottom edge. */
+        background: radial-gradient(circle at 50% 120%, rgba(255, 255, 255, .34), rgba(255, 255, 255, .18) 60%, rgba(255, 255, 255, .12));
         -webkit-backdrop-filter: blur(18px) saturate(180%);
         backdrop-filter: blur(18px) saturate(180%);
-        border: 1px solid rgba(180, 216, 255, .55);
+        border: 1px solid rgba(255, 255, 255, .55);
         box-shadow:
           inset 0 1px 0 rgba(255, 255, 255, .6),
           inset 0 -6px 14px rgba(255, 255, 255, .12),
-          inset 0 0 18px rgba(140, 195, 255, .35),
-          0 10px 30px rgba(10, 132, 255, .45);
+          inset 0 0 18px rgba(255, 255, 255, .2),
+          0 10px 30px rgba(0, 0, 0, .35);
         transition: transform .2s ease, box-shadow .2s ease;
       }
       #welcome-start::before {
         content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
         background: radial-gradient(70px 22px at 25% 0%, rgba(255, 255, 255, .5), transparent 70%);
       }
-      #welcome-start:hover { background: radial-gradient(circle at 50% 120%, rgba(90, 170, 255, 1), rgba(30, 144, 255, .9) 60%, rgba(10, 132, 255, .85)); transform: translateY(-1px) scale(1.04); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), inset 0 0 22px rgba(140, 195, 255, .45), 0 14px 36px rgba(10, 132, 255, .55); }
+      #welcome-start:hover { background: radial-gradient(circle at 50% 120%, rgba(255, 255, 255, .42), rgba(255, 255, 255, .26) 60%, rgba(255, 255, 255, .18)); transform: translateY(-1px) scale(1.04); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), inset 0 0 22px rgba(255, 255, 255, .28), 0 14px 36px rgba(255, 255, 255, .18); }
       #welcome-start:active { transform: scale(.97); }
 
       /* The begin screen: the room shows through untouched, the prompt sits low with
@@ -85,11 +110,29 @@
       #overlay.begin #overlay-text {
         display: block; padding: 10px 18px; font-size: 12px; min-height: 1.2em; letter-spacing: .08em; text-transform: uppercase; color: var(--ink);
         text-shadow: 0 2px 18px rgba(0, 0, 0, .9), 0 0 4px rgba(0, 0, 0, .8);
-        transition: padding .5s ease, font-size .5s ease, transform .35s ease, opacity .35s ease;
+        transition: padding .5s ease, font-size .5s ease, border-radius .5s ease;
       }
-      /* The pill blooms from a faint dot, is typed into, then swells once the line is in. */
-      #overlay.begin #overlay-text.opening { transform: scale(.6); opacity: 0; }
-      #overlay.begin #overlay-text.grown { padding: 18px 34px; font-size: 15px; }
+      /* The pill arrives as a point that swells to a circle (`dropIn` in
+         `src/droplet.js`), is typed into, then swells to this resting size. */
+      #overlay.begin #overlay-text.grown { padding: 22px 40px; font-size: 16px; border-radius: 999px; }
+      /* Until the line is in and the pill has settled, nothing is for clicking: the
+         cursor says so, and `overlay.js` ignores the pointer. */
+      #overlay.begin:not(.ready) { cursor: default; }
+      /* Once it is ready, a slanted band of blue light sweeps the pill left to right,
+         twice and no more — the one thing on screen that moves, so the eye goes to it
+         and the hand follows, without nagging. */
+      #overlay.begin #overlay-text::after {
+        content: ''; position: absolute; inset: -40% -60%; pointer-events: none; opacity: 0;
+        background: linear-gradient(115deg, transparent 38%, rgba(110, 168, 254, .08) 45%, rgba(110, 168, 254, .65) 50%, rgba(110, 168, 254, .08) 55%, transparent 62%);
+        transform: translateX(-60%);
+      }
+      #overlay.begin.ready #overlay-text::after { animation: begin-shine 2.2s ease-in-out .2s 2; }
+      @keyframes begin-shine {
+        0% { transform: translateX(-60%); opacity: 0; }
+        8% { opacity: 1; }
+        40% { transform: translateX(60%); opacity: 1; }
+        48%, 100% { transform: translateX(60%); opacity: 0; }
+      }
 
       /* Liquid glass: the room shows through, blurred and saturated, under a faint white
          sheen with a bright top edge, a soft inner glow and a glint pooled top-left. Worn
@@ -98,21 +141,28 @@
          displays the room blurred alone is too light a ground for text. */
       .glass {
         position: relative; overflow: hidden; border-radius: 20px;
+        /* Clear glass, structured after `tmp/glass-effects.jpg` but uncoloured: a thin
+           bright rim, a soft glow inside and a fainter one cast outside. */
         background:
-          linear-gradient(135deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, .04) 45%, rgba(255, 255, 255, .08)),
+          linear-gradient(135deg, rgba(255, 255, 255, .18), rgba(255, 255, 255, .05) 45%, rgba(255, 255, 255, .12)),
           rgba(13, 15, 19, .55);
         -webkit-backdrop-filter: blur(22px) saturate(180%);
         backdrop-filter: blur(22px) saturate(180%);
-        border: 1px solid rgba(255, 255, 255, .22);
+        border: 1px solid rgba(255, 255, 255, .4);
         box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, .45),
-          inset 0 -1px 0 rgba(255, 255, 255, .08),
-          inset 0 0 24px rgba(255, 255, 255, .06),
+          inset 0 1px 0 rgba(255, 255, 255, .6),
+          inset 0 -1px 0 rgba(255, 255, 255, .18),
+          inset 0 0 22px rgba(255, 255, 255, .12),
+          0 0 18px rgba(255, 255, 255, .1),
           0 10px 34px rgba(0, 0, 0, .45);
       }
+      /* The glints: hot spots pooled at the top-left and bottom-right corners, the way
+         the reference's edges flare where the light catches them. */
       .glass::before {
         content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
-        background: radial-gradient(120px 60px at 18% 0%, rgba(255, 255, 255, .28), transparent 70%);
+        background:
+          radial-gradient(90px 40px at 12% 0%, rgba(255, 255, 255, .45), transparent 70%),
+          radial-gradient(70px 30px at 90% 100%, rgba(255, 255, 255, .3), transparent 70%);
       }
       .glass > * { position: relative; }
       /* The blurb is glass only on a phone; on a desktop it is plain text under the name. */
@@ -121,13 +171,33 @@
         #intro-text.glass::before { display: none; }
       }
       body.begin #intro, body.begin #dock, body.begin #menu { opacity: 0; pointer-events: none; }
-      #overlay-text { letter-spacing: .02em; font-size: 16px; margin-bottom: 6px; }
+      #overlay-text { letter-spacing: .06em; font-size: 12.5px; color: var(--ink-dim); margin-bottom: 6px; }
       #overlay.error #overlay-text { color: #ff8080; max-width: 42ch; }
+      /* The bar in the site's own glass (see `.glass`), scaled to a pill: a clear track
+         with a thin bright rim, and a fill of brighter glass with a glint on top. */
       #bar-track {
-        width: min(360px, calc(100vw - 88px)); height: 8px; background: #2a2e37; border-radius: 4px;
+        width: min(360px, calc(100vw - 88px)); height: 10px; border-radius: 999px;
         overflow: hidden; justify-self: center;
+        background:
+          linear-gradient(135deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, .04) 45%, rgba(255, 255, 255, .1)),
+          rgba(13, 15, 19, .55);
+        -webkit-backdrop-filter: blur(22px) saturate(180%);
+        backdrop-filter: blur(22px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, .35);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, .5),
+          inset 0 0 12px rgba(255, 255, 255, .1),
+          0 0 14px rgba(255, 255, 255, .08);
       }
-      #bar { height: 100%; width: 0; background: var(--accent); border-radius: inherit; transition: width .2s ease; }
+      #bar {
+        position: relative; height: 100%; width: 0; border-radius: inherit; transition: width .2s ease;
+        background: linear-gradient(180deg, rgba(255, 255, 255, .55), rgba(255, 255, 255, .28));
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), 0 0 12px rgba(255, 255, 255, .3);
+      }
+      #bar::after {
+        content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+        background: radial-gradient(60px 6px at 30% 0%, rgba(255, 255, 255, .55), transparent 70%);
+      }
       /* Before `main.js` runs nothing can count bytes, so the bar sweeps instead of filling —
          see the inline script under `#overlay`. Dropped by `ui.progress()` on its first call. */
       #bar-track.indeterminate #bar { width: 35%; animation: bar-sweep 1.1s ease-in-out infinite; transition: none; }
@@ -141,11 +211,13 @@
       }
       #intro h1 { margin: 0 0 14px; font-size: 40px; line-height: 1.06; letter-spacing: -.02em; font-weight: 600; }
       #intro h1 .first { font-size: 52px; }
+      #intro h1 .first { display: inline-block; }
+      #intro h1 .last { display: block; }
       #intro p { margin: 0; color: var(--ink-dim); font-size: 13.5px; line-height: 1.65; }
       #intro-hint { margin-top: 16px !important; color: var(--ink-faint) !important; font-size: 12px !important; white-space: nowrap; }
 
-      /* The dock: two glass buttons — Menu, which opens the sheet of sections above it,
-         and Contact, an icon alone. */
+      /* The dock: four glass buttons — Menu, which opens the sheet of sections above it,
+         then Contact, Sound and the view button, icons alone. */
       #dock {
         display: flex; gap: 10px; margin-top: 18px; z-index: 12;
         transition: opacity .5s ease;
@@ -155,10 +227,14 @@
         font: inherit; color: var(--ink); cursor: pointer; border-radius: 999px;
         transition: color .2s ease, border-color .2s ease;
       }
-      .nav-btn:hover { border-color: rgba(255, 255, 255, .45); }
+      .nav-btn:hover { border-color: rgba(255, 255, 255, .7); }
       .nav-btn svg { width: 1.15em; height: 1.15em; flex: none; }
       .nav-btn.is-icon { width: 42px; height: 42px; padding: 0; justify-content: center; }
       .nav-btn.is-icon svg { width: 20px; height: 20px; }
+
+      /* The dock's entrance — a point that swells into a circle and draws out into the
+         Menu pill, then the round buttons springing out of it — is `enterDock` in
+         `src/resume/index.js`: it needs the pill's real width, which only layout knows. */
 
       /* Back, on a phone only: a glass arrow in the top-left corner while a section is
          open, for anyone who cannot find the empty room to tap between the prop and the
@@ -341,8 +417,19 @@
          it (a zero-width panel means no lens offset — see `flight.js`). */
       @media (max-width: 760px) {
         #intro { left: 22px; top: 26px; max-width: calc(100vw - 44px); }
-        #intro h1 { font-size: 30px; }
-        #intro h1 .first { font-size: 38px; }
+        #intro h1 { font-size: 42px; }
+        #intro h1 .first { font-size: 56px; }
+        /* While the room is orbited (`body.orbiting`, set in `main.js`) the name draws
+           in to one small line — both parts to one size, the surname slid up beside the
+           first name — and the blurb slips down and out; both come back once the camera
+           has been still a while. The slide is in ems — `--first-em` is the first name's
+           width in its own font size, measured by `main.js` — so it tracks the font as it
+           shrinks and lands beside it. A desktop keeps the name and text as they are. */
+        #intro h1 .first, #intro h1 .last { transition: font-size .5s ease, transform .5s ease; }
+        body.orbiting #intro h1 .first, body.orbiting #intro h1 .last { font-size: 32px; }
+        body.orbiting #intro h1 .last { transform: translate(calc(var(--first-em, 2.4) * 1em + .3em), -1.06em); }
+        #intro-text { transition: transform .45s ease, opacity .45s ease; }
+        body.orbiting #intro-text { transform: translateY(40px); opacity: 0; pointer-events: none; }
         /* The blurb leaves the name and sits low, just above the dock, as a glass pane
            (`.glass`, applied in the markup — on a desktop it is plain text under the name). */
         #intro-text { position: fixed; left: 22px; right: 22px; bottom: 92px; padding: 14px 16px; }
@@ -369,11 +456,11 @@
   </head>
   <body>
     <div id="intro">
-      <h1><span class="first">Arash</span><br />Goharrostami</h1>
+      <h1><span class="first">Arash</span><span class="last">Goharrostami</span></h1>
       <div id="intro-text" class="glass">
         <p>
-          Software Engineer — full-stack and backend systems. Five years building scalable web,
-          mobile and real-time services. Tehran, Iran.
+          Full-Stack Developer — web, backend and real-time services. Five years building
+          scalable products in TypeScript and Node.js. Tehran, Iran.
         </p>
         <p id="intro-hint">Drag to orbit · click anything on the desk to read about it</p>
       </div>
@@ -422,6 +509,7 @@ On a cable: click a point · A adds · X removes</pre>
     </div>
 
     <div id="overlay">
+      <canvas id="loading-cube"></canvas>
       <div id="overlay-text">Loading scripts…</div>
       <div id="bar-track" class="indeterminate"><div id="bar"></div></div>
       <!-- Shown in place of the loading text once the room is in — see `ui.welcome()`. -->
@@ -454,6 +542,9 @@ On a cable: click a point · A adds · X removes</pre>
         };
       })();
     </script>
+    <!-- The loading cube first, on its own: it needs three.js and the loader and nothing
+         else, and a module script runs as soon as its own graph is in. -->
+    <script type="module" src="/src/loading.js"></script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

@@ -33,7 +33,7 @@ import { loadGLB } from './gltfLoader.js';
  * trusted, like the room's other props; both take the same scale.
  */
 
-const MODEL_URL = 'models/penDisplay.glb';
+export const MODEL_URL = 'models/penDisplay.glb';
 
 /**
  * The screen's map, with the picture the room wants on it. The source's `screen`

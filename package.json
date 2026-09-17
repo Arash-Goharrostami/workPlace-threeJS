@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "convert": "bash scripts/convert-usdz.sh",
+    "favicon": "bash scripts/render-favicon.sh",
     "strip": "node scripts/strip-glb-image.mjs",
     "shrink": "node scripts/shrink-glb.mjs",
     "shrink:parts": "node scripts/shrink-parts.mjs",

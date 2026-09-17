@@ -556,9 +556,10 @@ function toNotes(section) {
         out.push({
           id: `role-${out.length}`,
           group,
-          title: item.role,
+          // The product names the row, as it heads the note; the role is the snippet.
+          title: item.org ?? item.role,
           date: item.date,
-          snippet: item.org ?? item.points?.[0] ?? '',
+          snippet: item.org ? item.role : item.points?.[0] ?? '',
           blocks: [{ kind: 'timeline', items: [item] }],
         });
       }

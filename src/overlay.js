@@ -1,6 +1,8 @@
 import { typePrompt } from './typingPrompt.js';
+import { dropIn, jiggle } from './droplet.js';
 import { PROFILE } from './resume/content.js';
 import { audioObjectUrl } from './preload.js';
+import { loadingCube } from './loadingCube.js';
 
 const el = document.getElementById('overlay');
 const text = document.getElementById('overlay-text');
@@ -34,6 +36,11 @@ function playStartup() {
   chime.play().catch(() => {});
 }
 
+/** How many of the last props go in after the cube has been solved. */
+const CUBE_TAIL = 3;
+/** The least the solved cube rests before the card, however fast those props were. */
+const CUBE_REST_MS = 1000;
+
 export const ui = {
   /** The bar and, in words, how much is in and how much is still to come. */
   progress(fraction, loadedBytes, totalBytes) {
@@ -53,6 +60,9 @@ export const ui = {
   /** The second phase: the bar counts props placed rather than bytes, `label` the one in hand. */
   objects(done, total, label) {
     bar.style.width = `${Math.round((done / total) * 100)}%`;
+    // The cube's solve keeps step with this phase alone — the props going in — and
+    // lands with the last few still to come, so their placing is its moment of rest.
+    loadingCube.setProgress(done / Math.max(1, total - CUBE_TAIL));
     text.textContent = label
       ? `Placing ${label}… ${done} of ${total} objects`
       : `Placed ${total} objects`;
@@ -69,12 +79,19 @@ export const ui = {
    * portfolio this is, with Start. Resolves on Start, having faded itself out — and
    * that click is the gesture the browser wants before anything may make a sound.
    */
-  welcome() {
+  async welcome() {
+    // `loadModel` hides the overlay just before this; back on at once, since the cube
+    // still has its last moves to make and the room must not show through meanwhile.
+    el.classList.remove('hidden');
+    loadingCube.setProgress(1);
+    await loadingCube.restedAfterSolve(CUBE_REST_MS);
+    // Down and away, and only then the card up from where it was.
+    await loadingCube.leave();
+    loadingCube.stop();
     welcomeName.textContent = PROFILE.name;
     welcome.hidden = false;
     welcome.classList.add('opening');
     el.classList.add('welcome');
-    el.classList.remove('hidden');
     requestAnimationFrame(() => requestAnimationFrame(() => welcome.classList.remove('opening')));
     return new Promise((resolve) => {
       welcomeStart.addEventListener('click', () => {
@@ -93,34 +110,52 @@ export const ui = {
     const touch = window.matchMedia('(pointer: coarse)').matches;
     const message = touch ? 'Tap anywhere to begin' : 'Click anywhere to begin';
     // Glass only now: under the loading screen's solid backdrop it would be a plain box.
-    text.textContent = '';
-    text.classList.add('glass', 'opening');
+    text.classList.add('glass');
+    text.classList.remove('grown');
     el.classList.remove('welcome');
     el.classList.add('begin');
     el.classList.remove('hidden');
-    // A small pill blooms, the line is typed into it (see `typingPrompt.js`), widening
-    // it as it goes, and once the line is in the pill swells to its resting size.
-    let prompt = null;
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      text.classList.remove('opening');
-      text.addEventListener('transitionend', () => {
-        prompt = typePrompt(text, message);
-        prompt.done.then(() => text.classList.add('grown'));
-      }, { once: true });
-    }));
+    // The pill arrives as a droplet (see `droplet.js`): a point in the middle of the
+    // screen that swells into a circle — a circle only, the pill's own height across.
+    // The line is then typed into it (see `typingPrompt.js`), widening it as it goes,
+    // and once the line is in the pill swells to its resting size. Only then — the
+    // last key struck, the swell settled — is the room open to a click: the overlay
+    // marks itself `ready`, the sheen starts sweeping the pill, and the pointer is
+    // listened to. Until that moment a click is nobody's; the overlay covers the room,
+    // so the camera cannot be dragged either.
+    let ready = false;
+    text.textContent = '\u00a0';
+    const height = text.offsetHeight;
+    text.textContent = '';
+    // Held at the disc's size while empty: released, the pill would dip to its empty
+    // height and no width for the beat before the first letter lands.
+    text.style.minWidth = `${height}px`;
+    text.style.minHeight = `${height}px`;
+    dropIn(text, { width: height, height, origin: 'center', overshoot: false }).then(() => {
+      const prompt = typePrompt(text, message);
+      prompt.done.then(() => {
+        text.style.minWidth = '';
+        text.style.minHeight = '';
+        text.classList.add('grown');
+        text.addEventListener('transitionend', () => {
+          ready = true;
+          el.classList.add('ready');
+        }, { once: true });
+      });
+    });
     // `body.begin`, set by main.js at startup, is what hides the resume's own chrome; the
     // click is what lifts it.
     return new Promise((resolve) => {
-      el.addEventListener('pointerdown', () => {
-        // A click mid-sentence finishes it; the room is what was asked for.
-        if (prompt) prompt.cancel();
-        else text.textContent = message;
-        text.classList.remove('opening');
-        text.classList.add('grown');
+      const onDown = () => {
+        if (!ready) return;
+        el.removeEventListener('pointerdown', onDown);
+        jiggle(text);
+        el.classList.remove('ready');
         document.body.classList.remove('begin');
         ui.hide();
         resolve();
-      }, { once: true });
+      };
+      el.addEventListener('pointerdown', onDown);
     });
   },
   /**
@@ -129,10 +164,13 @@ export const ui = {
    * read, not lost behind them.
    */
   error(message) {
-    el.classList.remove('hidden', 'welcome', 'begin');
+    loadingCube.stop();
+    el.classList.remove('hidden', 'welcome', 'begin', 'ready');
     el.classList.add('error');
     welcome.hidden = true;
-    text.classList.remove('glass', 'opening', 'grown');
+    text.classList.remove('glass', 'grown');
+    text.style.minWidth = '';
+    text.style.minHeight = '';
     text.textContent = message;
   },
 };

@@ -21,7 +21,7 @@ import { loadGLB } from './gltfLoader.js';
  * losing the alpha shows up as a solid face rather than as a missing one.
  */
 
-const MODEL_URL = 'models/macPro.glb';
+export const MODEL_URL = 'models/macPro.glb';
 
 /** Turns the machine's front from -x round to +z, out towards the room. */
 const FACE_ROOM = Math.PI / 2;

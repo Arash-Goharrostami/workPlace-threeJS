@@ -27,7 +27,7 @@ import { loadGLB } from './gltfLoader.js';
  * camera and no single frame is more than about 30 cm on screen, so the prints stay
  * readable as pictures without paying for detail nothing can resolve.
  */
-const MODEL_URL = 'models/wallFrames.glb';
+export const MODEL_URL = 'models/wallFrames.glb';
 
 /**
  * Prints swapped for something of this room's own, as `material name -> texture url`.
@@ -190,8 +190,8 @@ const FRAMES = [
  * group: it is converted on the way in.)
  */
 const FRAME_TRANSFORMS = {
-  python: { position: [-7.8, 219.7, -140.9], rotation: [0, 0, -90] },
-  databases: { position: [-8.2, 190.3, -140.9], rotation: [0, 0, -90] },
+  python: { position: [-7.8, 214.7, -140.9], rotation: [0, 0, -90] },
+  databases: { position: [-8.2, 185.3, -140.9], rotation: [0, 0, -90] },
 };
 
 /** How wide the composition hangs, in centimetres — the source's own 3 m scaled down. */
@@ -210,7 +210,7 @@ const TARGET_WIDTH = 110;
  * frames stay put.
  */
 const TRANSFORM = {
-  position: [36.3, 165.1, -140.9],
+  position: [36.3, 160.1, -140.9],
   rotation: [0, 0, 0],
 };
 

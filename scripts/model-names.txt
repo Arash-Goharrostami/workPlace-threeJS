@@ -40,6 +40,7 @@ Power_Plug_-Outlet_-Adapter__Connector_Strip	powerStrip
 Power_cable_hight-poly	powerCable
 Random_Books	books
 SOCKET__DE_PISO	floorSocket
+Standard_Mirror_Rubiks_Cube_Silver	rubiksCube
 USB-C_Charging_Cable_Type-C__Type-C	usbCable
 low_poly_sticky_notes	stickyNotes
 Workplace	workplace

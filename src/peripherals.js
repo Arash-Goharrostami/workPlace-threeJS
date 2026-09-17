@@ -16,8 +16,8 @@ import { loadGLB } from './gltfLoader.js';
  * so `npm run shrink -- magicTrackpad 512 85` only recompressed its geometry, 191 KB
  * to 95 KB.
  */
-const KEYBOARD_URL = 'models/magicKeyboard.glb';
-const TRACKPAD_URL = 'models/magicTrackpad.glb';
+export const KEYBOARD_URL = 'models/magicKeyboard.glb';
+export const TRACKPAD_URL = 'models/magicTrackpad.glb';
 
 /** Metres (the models' units) to this scene's centimetres. */
 const SCALE = 100;

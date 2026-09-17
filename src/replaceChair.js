@@ -22,7 +22,7 @@ import { materialsOf } from './materials.js';
  * fine repeating weave is what suffers most from being resampled to 512. At 1024 it costs
  * 743 KB.
  */
-const MODEL_URL = 'models/officeChair.glb';
+export const MODEL_URL = 'models/officeChair.glb';
 
 /** The chair baked into Workplace.glb, which this replaces. */
 const OLD_CHAIR_NAME = 'Chair01_Chair';

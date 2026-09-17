@@ -20,7 +20,7 @@ import { buildCable } from './cable.js';
  * taking the file from 4.86 MB to 33 KB. Both connectors keep every one of their 11,904
  * triangles, so nothing that is actually rendered changed.
  */
-const MODEL_URL = 'models/powerCable.glb';
+export const MODEL_URL = 'models/powerCable.glb';
 
 /** The parts worth keeping out of the pack; everything else is the model's own flex. */
 const PLUG_PART = 'polySurface89';

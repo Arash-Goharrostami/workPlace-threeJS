@@ -9,7 +9,7 @@ import { loadGLB } from './gltfLoader.js';
  * with the long side along x — which is parallel to this desk, so it needs no turn.
  */
 
-const MODEL_URL = 'models/carpet.glb';
+export const MODEL_URL = 'models/carpet.glb';
 
 /** Metres (the model's units) to this scene's centimetres. */
 const SCALE = 100;

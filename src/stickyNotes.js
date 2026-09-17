@@ -25,7 +25,7 @@ import { loadFace } from './resume/screen.js';
  * would move both at once.
  */
 
-const MODEL_URL = 'models/stickyNotes.glb';
+export const MODEL_URL = 'models/stickyNotes.glb';
 
 /** A real 3-inch note, in this scene's centimetres. */
 const NOTE_SIZE = 7.6;
@@ -40,8 +40,8 @@ const NOTE_SIZE = 7.6;
  * take precedence over `anchor`/`tilt`.
  */
 const NOTES = [
-  { text: 'English class\nSun & Wed', colour: 0xfff176, position: [-34.6, 114.8, -107.6], rotation: [87, 90, 86] },
-  { text: 'Remember:\n18 March!', colour: 0xfff176, position: [-26.2, 114.9, -107.4], rotation: [90, 1, 0] },
+  { text: 'English class\nSun & Wed', colour: 0xfff176, position: [8.2, 114.8, -107.6], rotation: [87, 90, 86] },
+  { text: 'Remember:\n18 March!', colour: 0xfff176, position: [-0.4, 114.6, -107.4], rotation: [88.3, 90, 89] },
 ];
 
 /** How far the note stands off the glass, so it never z-fights with it. */

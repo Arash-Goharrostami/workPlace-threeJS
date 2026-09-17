@@ -13,7 +13,7 @@ import { buildFeltMat } from './deskMat.js';
  * which is what `SHELL_PARTS` and `BASE_PARTS` below still select on.
  */
 
-const MODEL_URL = 'models/magicMouse.glb';
+export const MODEL_URL = 'models/magicMouse.glb';
 
 /** Metres (the mat's authored units) to this scene's centimetres. */
 const SCALE = 100;

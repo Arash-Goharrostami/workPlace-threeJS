@@ -24,7 +24,7 @@ export function extendBackWall(model, deskBox) {
   const windowBox = boxOf(model.getObjectByName('window'));
   if (!walls || !deskBox) return null;
 
-  const wall = pickWindowlessWall(walls, windowBox);
+  const { blank: wall, side } = pickWalls(walls, windowBox);
   if (!wall) return null;
 
   const box = boxOf(wall);
@@ -32,13 +32,18 @@ export function extendBackWall(model, deskBox) {
 
   // The end that meets the other wall is whichever is nearer the room's own extent;
   // that end is pinned and the opposite, free end is the one that travels. It is
-  // pinned to the room's outer extent rather than to where the model left it: as
+  // pinned to the side wall's *inner* face rather than to where the model left it: as
   // authored the wall stops half a centimetre short of the side wall, which from
-  // outside the corner reads as a slot between the two. Running it through to the
-  // side wall's outer face closes that and makes the corner one solid block.
+  // outside the corner reads as a slot between the two. Butting it against the side
+  // wall closes that. (It was once run on through to the side wall's outer face, "one
+  // solid block" — but two boxes sharing the corner have their outer, end and top
+  // faces coplanar there, and the corner flickered between the two greys.)
   const wallsBox = boxOf(walls);
+  const sideBox = boxOf(side);
   const freeEndIsMin = box.min[axis] - wallsBox.min[axis] > wallsBox.max[axis] - box.max[axis];
-  const anchor = freeEndIsMin ? wallsBox.max[axis] : wallsBox.min[axis];
+  const anchor = sideBox
+    ? (freeEndIsMin ? sideBox.min[axis] : sideBox.max[axis])
+    : (freeEndIsMin ? wallsBox.max[axis] : wallsBox.min[axis]);
   const freeEnd = freeEndIsMin ? box.min[axis] : box.max[axis];
   const fullTarget = freeEndIsMin
     ? deskBox.min[axis] - WALL_OVERHANG
@@ -93,20 +98,19 @@ function toParentSpace(parent, worldDelta) {
 }
 
 /**
- * The blank wall. The window's bounding box is long enough to clip both walls, so
- * a plain intersection test picks neither — the wall that overlaps it *most* is the
- * one the window belongs to, and the blank wall is whichever other one overlaps least.
+ * The blank wall and the side wall it meets. The window's bounding box is long enough
+ * to clip both walls, so a plain intersection test picks neither — the wall that
+ * overlaps it *most* is the one the window belongs to (the side wall), and the blank
+ * wall is whichever other one overlaps least.
  */
-function pickWindowlessWall(walls, windowBox) {
+function pickWalls(walls, windowBox) {
   const candidates = walls.children.filter((child) => !NON_WALLS.has(child.name));
-  if (candidates.length < 2 || !windowBox) return candidates[0] ?? null;
+  if (candidates.length < 2 || !windowBox) return { blank: candidates[0] ?? null, side: candidates[1] ?? null };
 
-  let best = null;
-  for (const child of candidates) {
-    const overlap = overlapVolume(boxOf(child), windowBox);
-    if (!best || overlap < best.overlap) best = { child, overlap };
-  }
-  return best.child;
+  const ranked = candidates
+    .map((child) => ({ child, overlap: overlapVolume(boxOf(child), windowBox) }))
+    .sort((a, b) => a.overlap - b.overlap);
+  return { blank: ranked[0].child, side: ranked[ranked.length - 1].child };
 }
 
 function overlapVolume(a, b) {

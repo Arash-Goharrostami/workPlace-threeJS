@@ -38,5 +38,40 @@ function shared() {
  * its model is Draco-compressed, which is exactly what happened to `desk.glb`.
  */
 export function loadGLB(url, onProgress) {
-  return shared().loadAsync(url, onProgress);
+  const bytes = prefetched.get(url);
+  if (!bytes) return shared().loadAsync(url, onProgress);
+  // Parsed from the prefetched bytes, once: a URL loaded again after that goes back
+  // through `loadAsync`, so every caller gets a scene and materials of its own.
+  prefetched.delete(url);
+  const path = url.slice(0, url.lastIndexOf('/') + 1);
+  return bytes.then(
+    (buffer) => shared().parseAsync(buffer, path),
+    () => shared().loadAsync(url, onProgress),
+  );
+}
+
+/** URL → the promise of its bytes, for a model asked for ahead of its load. */
+const prefetched = new Map();
+
+/**
+ * Starts the download of every `urls` entry now, so that a later `loadGLB` of the
+ * same URL finds its bytes here (or on the way) instead of only then asking the
+ * network. `loadModel.js` places the props one after another because each is put
+ * down against the last, which without this left the connection idle through every
+ * decode: the room's whole load was download + decode, prop by prop. In the order
+ * given — the browser lets a handful through at a time, so the first needed go first.
+ *
+ * A failed fetch is dropped here without a word; the `loadGLB` for it fetches again
+ * the ordinary way and reports any failure as its own.
+ */
+export function prefetchGLB(urls) {
+  for (const url of urls) {
+    if (prefetched.has(url)) continue;
+    const bytes = fetch(url).then((response) => {
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      return response.arrayBuffer();
+    });
+    bytes.catch(() => prefetched.delete(url));
+    prefetched.set(url, bytes);
+  }
 }
