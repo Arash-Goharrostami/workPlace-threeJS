@@ -59,6 +59,8 @@ const BODY_ENV_INTENSITY = 0.3;
  */
 const LAYER_MIN = 0.3;
 const AXES = ['x', 'y', 'z'];
+/** How far into its quarter turn the layer a `giveUp` cube abandons is left. */
+const STALL_FRACTION = 0.4;
 const ease = (t) => t * t * (3 - 2 * t);
 
 /**
@@ -67,17 +69,27 @@ const ease = (t) => t * t * (3 - 2 * t);
  * last move has landed — or at once if the cube cannot be shown or turned, so the
  * card is never held up by it — and `stop()` ends the loop, drops the listeners and
  * releases the renderer.
+ *
+ * `options.giveUp` is the error page's cube (`error.js`): undo that many moves at the
+ * usual pace, ungated, then start the next one and leave it `STALL_FRACTION` of the way
+ * round — a layer left hanging, never finished, so `solved` never resolves; `stalled`
+ * does, once that layer has come to rest.
+ * `options.sound: false` turns the layers in silence.
  */
-function startLoadingCube(canvas) {
+export function startLoadingCube(canvas, { giveUp = 0, sound = true } = {}) {
   let markSolved;
   const solved = new Promise((resolve) => { markSolved = resolve; });
-  const inert = { setProgress() {}, solved, restedAfterSolve: () => solved, leave: () => solved, stop() {} };
-  if (!canvas) { markSolved(); return inert; }
+  /** The give-up's counterpart to `solved`: the hanging layer has come to rest. */
+  let markStalled;
+  const stalled = new Promise((resolve) => { markStalled = resolve; });
+  const giveUpNow = () => { markSolved(); markStalled(); };
+  const inert = { setProgress() {}, solved, stalled, restedAfterSolve: () => solved, leave: () => solved, stop() {} };
+  if (!canvas) { giveUpNow(); return inert; }
   let renderer;
   try {
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   } catch {
-    markSolved();
+    giveUpNow();
     return inert;
   }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
@@ -154,7 +166,7 @@ function startLoadingCube(canvas) {
     const moved = pieces.filter((piece) => piece.cell[axis] === layer);
     for (const piece of moved) pivot.attach(piece.node);
     turning = { axis, dir, moved, ms, start: performance.now(), resolve };
-    cubeSound.turn(ms);
+    if (sound) cubeSound.turn(ms);
   });
   // The end of a turn: the layer square on, its pieces handed back to the body and
   // their cells turned with them.
@@ -196,6 +208,7 @@ function startLoadingCube(canvas) {
    * and no faster than the floor. With everything in, the rest plays out back to back.
    */
   const solve = async (undo) => {
+    if (giveUp) return abandon(undo);
     const started = performance.now();
     let done = 0;
     while (done < undo.length) {
@@ -214,6 +227,25 @@ function startLoadingCube(canvas) {
     markSolved();
   };
 
+  /**
+   * The give-up: `giveUp` moves back, then the next begun and stopped part-way. The
+   * stalled layer is a turn that is never finished — its pieces stay on the pivot at
+   * the stall angle, and `turning` is cleared so `tick` leaves it there.
+   */
+  const abandon = async (undo) => {
+    for (const move of undo.slice(0, Math.min(giveUp, undo.length - 1))) {
+      if (stopped) return;
+      await turn(move, MOVE_MS);
+      await wait(GAP_MS);
+    }
+    if (stopped) return;
+    const move = undo[Math.min(giveUp, undo.length - 1)];
+    const moved = pieces.filter((piece) => piece.cell[move.axis] === move.layer);
+    for (const piece of moved) pivot.attach(piece.node);
+    turning = { axis: move.axis, dir: move.dir, moved, ms: MOVE_MS * 1.6, start: performance.now(), stall: true };
+    if (sound) cubeSound.turn(MOVE_MS);
+  };
+
   const tick = (now) => {
     if (stopped) return;
     frame = requestAnimationFrame(tick);
@@ -222,8 +254,14 @@ function startLoadingCube(canvas) {
     if (!cube) return;
     if (turning) {
       const t = Math.min(1, (now - turning.start) / turning.ms);
-      pivot.rotation[turning.axis] = turning.dir * ease(t) * Math.PI / 2;
-      if (t === 1) finishTurn();
+      // A stalled turn eases out to its stall angle instead of the quarter, and is
+      // then left as it is.
+      const share = turning.stall ? STALL_FRACTION : 1;
+      pivot.rotation[turning.axis] = turning.dir * ease(t) * share * Math.PI / 2;
+      if (t === 1) {
+        if (turning.stall) { turning = null; markStalled(); }
+        else finishTurn();
+      }
     }
     if (!drag && (Math.abs(spin.x) > STILL || Math.abs(spin.y) > STILL)) {
       cube.rotation.x += spin.x * dt;
@@ -257,7 +295,7 @@ function startLoadingCube(canvas) {
       body.add(pivot);
     } else {
       console.warn('[loading cube] no Mirror_Cube node — the cube will not turn');
-      markSolved();
+      giveUpNow();
     }
     model.traverse((node) => {
       const materials = Array.isArray(node.material) ? node.material : node.material ? [node.material] : [];
@@ -293,7 +331,7 @@ function startLoadingCube(canvas) {
     }
   }).catch((error) => {
     console.warn('[loading cube] not shown:', error?.message ?? error);
-    markSolved();
+    giveUpNow();
   });
 
   frame = requestAnimationFrame(tick);
@@ -319,7 +357,7 @@ function startLoadingCube(canvas) {
   const stop = () => {
     if (stopped) return;
     stopped = true;
-    markSolved();
+    giveUpNow();
     cancelAnimationFrame(frame);
     window.removeEventListener('resize', fit);
     canvas.removeEventListener('pointerdown', onDown);
@@ -338,7 +376,7 @@ function startLoadingCube(canvas) {
     });
     renderer.dispose();
   };
-  return { setProgress, solved, restedAfterSolve, leave, stop };
+  return { setProgress, solved, stalled, restedAfterSolve, leave, stop };
 }
 
 export const loadingCube = startLoadingCube(document.getElementById('loading-cube'));

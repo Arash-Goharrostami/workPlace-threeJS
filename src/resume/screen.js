@@ -539,8 +539,12 @@ export function setupScreens() {
       if (pending.length) {
         Promise.all(pending.map((entry) => entry.promise)).then(() => {
           if (painted.get(prop)?.plane !== plane) return;
-          if (app) app.repaint();
-          else screens.paint(prop, section);
+          // A window that keeps laid-out panes (Notes) drew the open one with its slots
+          // empty; it has to let that go, or the repaint shows the same pane again.
+          if (app) {
+            app.invalidate?.();
+            app.repaint();
+          } else screens.paint(prop, section);
         });
       }
       const page = app

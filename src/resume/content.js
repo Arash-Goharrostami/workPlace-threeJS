@@ -594,6 +594,11 @@ export const SECTIONS = {
                 icon: 'dart',
                 desc: 'The language behind Flutter — one codebase for iOS, Android and web.',
               },
+              {
+                name: 'React Native',
+                icon: 'react-native',
+                desc: 'React for iOS and Android — one JavaScript codebase driving native views.',
+              },
             ],
           },
           {

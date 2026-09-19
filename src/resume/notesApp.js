@@ -247,6 +247,15 @@ export function createNotesApp(section, view) {
       requestAnimationFrame(tick);
     },
 
+    /**
+     * Drops every kept pane, so the next draw lays them out again. `screen.js` calls
+     * it when the chips' icons land: the first note was laid out before they had, with
+     * its glyph slots empty, and a repaint alone would show that same pane again.
+     */
+    invalidate() {
+      laid.clear();
+    },
+
     /** Back to the first note, at its top — where opening the section should land. */
     rewind() {
       const wasSelected = selected;
