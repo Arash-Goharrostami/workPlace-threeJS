@@ -223,14 +223,14 @@
         transition: opacity .5s ease;
       }
       .nav-btn {
-        display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px;
-        font: inherit; color: var(--ink); cursor: pointer; border-radius: 999px;
+        display: inline-flex; align-items: center; gap: 9px; padding: 13px 20px;
+        font: inherit; font-size: 15px; color: var(--ink); cursor: pointer; border-radius: 999px;
         transition: color .2s ease, border-color .2s ease;
       }
       .nav-btn:hover { border-color: rgba(255, 255, 255, .7); }
       .nav-btn svg { width: 1.15em; height: 1.15em; flex: none; }
-      .nav-btn.is-icon { width: 42px; height: 42px; padding: 0; justify-content: center; }
-      .nav-btn.is-icon svg { width: 20px; height: 20px; }
+      .nav-btn.is-icon { width: 52px; height: 52px; padding: 0; justify-content: center; }
+      .nav-btn.is-icon svg { width: 25px; height: 25px; }
 
       /* The dock's entrance — a point that swells into a circle and draws out into the
          Menu pill, then the round buttons springing out of it — is `enterDock` in
@@ -432,12 +432,12 @@
         body.orbiting #intro-text { transform: translateY(40px); opacity: 0; pointer-events: none; }
         /* The blurb leaves the name and sits low, just above the dock, as a glass pane
            (`.glass`, applied in the markup — on a desktop it is plain text under the name). */
-        #intro-text { position: fixed; left: 22px; right: 22px; bottom: 92px; padding: 14px 16px; }
+        #intro-text { position: fixed; left: 22px; right: 22px; bottom: 102px; padding: 14px 16px; }
         #intro-text p { color: var(--ink); font-size: 15px; text-shadow: 0 1px 6px rgba(0, 0, 0, .9); }
         #intro-hint { margin-top: 8px !important; white-space: normal; color: var(--ink-dim) !important; }
         #dock { position: fixed; left: 22px; right: 22px; bottom: 20px; margin: 0; }
         #back-btn:not([hidden]) { display: inline-flex; }
-        #menu { position: fixed; top: auto; left: 22px; right: 22px; bottom: 82px; margin: 0; }
+        #menu { position: fixed; top: auto; left: 22px; right: 22px; bottom: 92px; margin: 0; }
         .menu-item { padding: 13px 16px; font-size: 16px; }
         .panel {
           top: auto; left: 0; right: 0; width: auto; height: 72vh; padding: 30px 24px 60px;

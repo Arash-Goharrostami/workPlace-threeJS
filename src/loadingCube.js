@@ -27,6 +27,8 @@ const DRAG_RATE = 0.008;
 const INERTIA = 0.05;
 /** A spin slower than this, in rad/s, is taken as stopped. */
 const STILL = 0.005;
+/** The fastest flick honoured, in rad/s — a cap on the velocity estimate, not on the drag. */
+const MAX_SPIN = 25;
 const MAX_PIXEL_RATIO = 1.5;
 
 /**
@@ -120,34 +122,41 @@ export function startLoadingCube(canvas, { giveUp = 0, sound = true } = {}) {
 
   // The drag: pixels moved turn the cube about the screen's axes; the last velocity
   // carries on after release and dies away, so a flick spins it and it settles.
+  // The drag is clocked by `event.timeStamp`, not the time the handler runs: while the
+  // room loads the main thread stalls, pointer events queue up, and a burst delivered
+  // afterwards would otherwise look like a second of movement in a millisecond.
   let drag = null;
   const spin = { x: 0, y: 0 };
+  const clampSpin = (v) => Math.max(-MAX_SPIN, Math.min(MAX_SPIN, v));
   const onDown = (event) => {
     if (!cube) return;
-    drag = { x: event.clientX, y: event.clientY, at: performance.now() };
+    drag = { x: event.clientX, y: event.clientY, at: event.timeStamp };
     spin.x = 0;
     spin.y = 0;
-    canvas.setPointerCapture(event.pointerId);
+    // Firefox throws NotFoundError for a pointer that has already ended (touch, pen);
+    // the drag works without capture, it just stops at the canvas edge.
+    try { canvas.setPointerCapture(event.pointerId); } catch { /* ignore */ }
     canvas.classList.add('dragging');
   };
   const onMove = (event) => {
     if (!drag || !cube) return;
     const dx = event.clientX - drag.x;
     const dy = event.clientY - drag.y;
-    const now = performance.now();
+    const now = event.timeStamp;
     const dt = Math.max(1, now - drag.at) / 1000;
     cube.rotation.y += dx * DRAG_RATE;
     cube.rotation.x += dy * DRAG_RATE;
-    spin.y = (dx * DRAG_RATE) / dt;
-    spin.x = (dy * DRAG_RATE) / dt;
+    spin.y = clampSpin((dx * DRAG_RATE) / dt);
+    spin.x = clampSpin((dy * DRAG_RATE) / dt);
     drag = { x: event.clientX, y: event.clientY, at: now };
   };
   const onUp = (event) => {
     if (!drag) return;
     // A hold with no movement over the last stretch is a stop, not a flick.
-    if (performance.now() - drag.at > 80) { spin.x = 0; spin.y = 0; }
+    if (event.timeStamp - drag.at > 80) { spin.x = 0; spin.y = 0; }
     drag = null;
-    if (canvas.hasPointerCapture?.(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+    // No explicit release: the browser drops implicit capture after pointerup/pointercancel,
+    // and Firefox throws on releasing a pointer id that has just ended.
     canvas.classList.remove('dragging');
   };
   canvas.addEventListener('pointerdown', onDown);
