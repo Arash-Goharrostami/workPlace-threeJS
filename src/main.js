@@ -279,7 +279,7 @@ controls.addEventListener('change', () => {
   }, INTRO_RETURN_MS);
 });
 const isActive = (now) =>
-  dragging || now < activeUntil || descent !== null || (resume?.isFlying() ?? false);
+  dragging || now < activeUntil || descent !== null || (resume?.isBusy() ?? false);
 
 // Nothing is drawn while the tab is hidden, and the clock is reset on the way back so
 // the printer does not get handed the whole absence as one step.
@@ -300,7 +300,7 @@ renderer.setAnimationLoop(() => {
   // Before `controls.update()`: a flight writes the camera position that the damping
   // in `controls` then settles.
   descent?.update();
-  resume?.update();
+  resume?.update(dt);
   controls.update();
   renderer.render(scene, camera);
   stats?.update();

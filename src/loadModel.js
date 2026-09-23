@@ -47,6 +47,7 @@ import { addCableHolders } from './cableHolders.js';
 import { addScreenbarRemote } from './screenbarRemote.js';
 import { addAirPodsMax } from './airpodsMax.js';
 import { addRubiksCube } from './rubiksCube.js';
+import { addChessSet, MODEL_URL as CHESS_SET_URL } from './chessSet.js';
 import { addFloorSocket } from './floorSocket.js';
 import { applyHomeView } from './homeView.js';
 import { preloadAudio } from './preload.js';
@@ -104,6 +105,7 @@ const PROP_MODELS = [
   ...Object.values(APPLE_MODELS), SCREENBAR_REMOTE_URL, AIRPODS_URL, KEYBOARD_URL, TRACKPAD_URL,
   MOUSE_URL, MAC_PRO_URL, CABLE_HOLDER_URL, FLOOR_SOCKET_URL, WALL_OUTLET_URL, WALL_FRAMES_URL,
   POWER_STRIP_URL, MAC_PRO_CABLE_URL, BLIND_URL, GUITAR_URL, DUMBBELLS_URL, CARPET_URL, CHAIR_URL,
+  CHESS_SET_URL,
 ];
 
 /**
@@ -140,6 +142,7 @@ const OBJECTS = [
   'screenbar remote',
   'airpods max',
   'rubiks cube',
+  'chess set',
   'peripherals',
   'mouse',
   'mac pro',
@@ -353,6 +356,10 @@ export function loadModel({ scene, camera, controls, environment, ui }) {
           // The mirror cube standing on the right of the desk, at an authored spot of its own.
           await place('rubiks cube', addRubiksCube(model).catch((error) => {
             console.warn('[rubiks cube] failed to load:', error);
+          }));
+          // The chess set beside it, pieces in their opening ranks, at an authored spot.
+          await place('chess set', addChessSet(model).catch((error) => {
+            console.warn('[chess set] failed to load:', error);
           }));
           const mat = addDeskMat(model, swap.desk);
           await place('peripherals', addPeripherals(model, mat).catch((error) => {

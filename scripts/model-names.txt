@@ -27,6 +27,7 @@ Black_Computer_Chair_-_Mesh_Back_Support	officeChair
 Blind_curtain	blindCurtain
 Books_Set_1	booksSet1
 Cable_holder	cableHolder
+Chess_Set	chessSet
 Composition_of_frames_for_wall_decoration	wallFrames
 Desk	desk
 Dumbbells	dumbbells

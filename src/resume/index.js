@@ -8,6 +8,7 @@ import { setupScreens } from './screen.js';
 import { setupWallFrames } from './wallFrameFocus.js';
 import { setupPhoneApps } from './phoneApps.js';
 import { setupSheetPrompt } from './sheetPrompt.js';
+import { setupChess } from '../chess/game.js';
 import { PROFILE, SECTIONS } from './content.js';
 
 /**
@@ -61,7 +62,7 @@ export function setupResume({ scene, camera, renderer, controls, model, onSound,
   const anchors = buildAnchors(model, camera);
   if (!Object.keys(anchors).length) {
     console.warn('[resume] no props resolved — leaving the room as a plain viewer');
-    return { update() {}, intro() {}, isFlying: () => false, lockZoomOut() {}, blurb: { dismiss() {}, reopen() {} } };
+    return { update() {}, intro() {}, isFlying: () => false, isBusy: () => false, lockZoomOut() {}, blurb: { dismiss() {}, reopen() {} } };
   }
 
   const introEl = document.getElementById('intro');
@@ -122,6 +123,16 @@ export function setupResume({ scene, camera, renderer, controls, model, onSound,
       onProp[key] = setupPhoneApps({ group: anchors[key].object });
     } else if (mode === 'sheet') {
       onProp[key] = setupSheetPrompt({ group: anchors[key].object });
+    } else if (mode === 'chess') {
+      // The one section that can fail to build — the set is read for its pieces, and
+      // a re-import that renames them would throw. The dock already has its button,
+      // so the set is then simply looked at, the way the mural is.
+      try {
+        onProp[key] = setupChess({ group: anchors[key].object });
+      } catch (error) {
+        console.warn('[resume] the chess set cannot be played:', error);
+        onProp[key] = { hover: () => false, open: () => true, reset() {} };
+      }
     } else if (mode === 'mural') {
       // Something simply read where it hangs: nothing on it to hover or open, so a
       // click anywhere while it is up — the chalk itself included — steps back out,
@@ -231,6 +242,9 @@ export function setupResume({ scene, camera, renderer, controls, model, onSound,
     // last time it was read.
     focused = null;
     for (const group of Object.values(onProp)) group.reset();
+    // A section with something to start when the camera comes down — the chess game
+    // wakes its engine and shows its card.
+    if (next) onProp[next]?.enter?.();
 
     // Measured before the flight, not after: the lens shift that keeps the prop clear
     // of the sidebar has to be sized from a width the panel has not taken yet. On a
@@ -272,9 +286,11 @@ export function setupResume({ scene, camera, renderer, controls, model, onSound,
   }
 
   /** Run once a frame from the render loop, before `renderer.render`. */
-  const update = () => {
+  const update = (dt = 0) => {
     flight.update();
     picking.update();
+    // A section with pieces of its own in motion — the chess game's — moves them here.
+    for (const group of Object.values(onProp)) group.update?.(dt);
     // The glyph follows the view whichever way it got there — the button, a click on
     // empty room, or closing the mural.
     dock.setWide(flight.wideView);
@@ -390,9 +406,11 @@ export function setupResume({ scene, camera, renderer, controls, model, onSound,
   /** Whether the camera is flying or the lean is still settling — `main.js` keeps the
    *  full frame rate up while it is. */
   const isFlying = () => flight.moving;
+  /** Whether anything the resume owns is moving: the camera, or a section's own pieces. */
+  const isBusy = () => flight.moving || Object.values(onProp).some((group) => group.busy?.());
 
   const lockZoomOut = (minPolar) => flight.lockZoomOut(minPolar);
-  return { update, open, intro, isFlying, lockZoomOut, blurb, get openKey() { return openKey; } };
+  return { update, open, intro, isFlying, isBusy, lockZoomOut, blurb, get openKey() { return openKey; } };
 }
 
 /** Fades a bit of chrome out without collapsing the layout the labels dodge around. */

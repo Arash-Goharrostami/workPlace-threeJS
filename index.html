@@ -363,6 +363,28 @@
       #ask p { margin: 0; color: var(--ink); font-size: 14px; line-height: 1.6; }
       #ask .btn { margin: 16px 4px 0; }
 
+      /* The chess game's card — see `src/chess/game.js`. Pinned to the bottom, out of
+         the way of the board: the status line, the room's level and a fresh start. */
+      #chess {
+        position: fixed; left: 50%; bottom: 22px; z-index: 25; display: none;
+        width: min(420px, calc(100vw - 48px)); padding: 12px 16px; box-sizing: border-box;
+        transform: translateX(-50%); align-items: center; gap: 12px;
+        background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+        backdrop-filter: blur(16px);
+      }
+      #chess.is-open { display: flex; }
+      #chess p { flex: 1; margin: 0; color: var(--ink); font-size: 14px; line-height: 1.5; }
+      #chess select {
+        font: inherit; font-size: 13px; color: var(--ink); cursor: pointer;
+        padding: 5px 8px; background: rgba(255, 255, 255, .06);
+        border: 1px solid var(--line); border-radius: 8px;
+      }
+      #chess .btn { margin: 0; white-space: nowrap; }
+      @media (max-width: 760px) {
+        #chess { flex-wrap: wrap; bottom: 16px; }
+        #chess p { flex-basis: 100%; }
+      }
+
       /* --------------------------------------------------------------- debug */
 
       /* The authoring tools ride along in the markup but only appear under `?debug`
@@ -478,6 +500,13 @@
       <p>Would you like to download the CV as a PDF?</p>
       <a class="btn" data-yes href="#">Yes, download PDF</a>
       <button class="btn btn-ghost" type="button" data-no>Not now</button>
+    </div>
+
+    <!-- The chess game's status and controls — see `src/chess/game.js`. -->
+    <div id="chess">
+      <p data-status>Your move — you play white</p>
+      <select data-level aria-label="The room's level"></select>
+      <button class="btn btn-ghost" type="button" data-new>New game</button>
     </div>
 
     <!-- Filled from `src/resume/content.js`, by `src/resume/panels.js`. -->

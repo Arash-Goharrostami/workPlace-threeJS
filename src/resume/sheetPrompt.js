@@ -1,4 +1,6 @@
-import { CV_URL, CV_FILENAME } from './content.js';
+import { CV_FILENAME } from './content.js';
+import { drawPortfolioPage } from './portfolioPage.js';
+import { sheetToPdfBlob } from './pdf.js';
 
 /**
  * The CV section, read on the paper tablet itself.
@@ -7,8 +9,9 @@ import { CV_URL, CV_FILENAME } from './content.js';
  * tablet (`src/paperTablet.js`) is the whole CV on one page, so there is no sidebar to
  * build and — unlike the monitor and the laptop — nothing to scroll. What the section
  * adds is one question. A click on the page brings up a small card asking whether to
- * download the CV as a PDF; a click on the board or the clip around it is the step back
- * out to the room, the way it is for every other prop.
+ * download the CV as a PDF — built on the spot from the same sheet (`pdf.js`), so there
+ * is no file to keep in step; a click on the board or the clip around it is the step
+ * back out to the room, the way it is for every other prop.
  *
  * Same contract as `phoneApps.js`: `hover` says whether the pointer is on something
  * clickable, `open` works the click and returns the HUD line for it (or null when it
@@ -29,18 +32,35 @@ export function setupSheetPrompt({ group }) {
   const card = document.getElementById('ask');
   const yes = card?.querySelector('[data-yes]');
   const no = card?.querySelector('[data-no]');
-  if (yes) {
-    yes.href = CV_URL;
-    yes.setAttribute('download', CV_FILENAME);
-  }
 
   const show = (on) => {
     if (card) card.classList.toggle('is-open', on);
   };
 
-  // Either answer puts the card away; *yes* is a download link, so the browser has
-  // already started the file by the time the click reaches here.
-  yes?.addEventListener('click', () => show(false));
+  /**
+   * Draws the sheet afresh, wraps it as a PDF and hands it to the browser as a
+   * download. A failure is logged, not thrown: the card still closes and the room
+   * carries on.
+   */
+  const download = () => {
+    try {
+      const url = URL.createObjectURL(sheetToPdfBlob(drawPortfolioPage()));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = CV_FILENAME;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      console.warn('[resume] could not build the CV PDF', err);
+    }
+  };
+
+  // Either answer puts the card away.
+  yes?.addEventListener('click', (event) => {
+    event.preventDefault();
+    download();
+    show(false);
+  });
   no?.addEventListener('click', () => show(false));
 
   const hover = (object) => Boolean(sheet) && object === sheet;

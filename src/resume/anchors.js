@@ -150,6 +150,21 @@ const ANCHORS = {
     dir: [0, 0, -1],
     lift: 0,
   },
+  chess: {
+    // The chess set on the right-hand end of the desk (`chessSet.js`), which is played,
+    // not read: the visitor is white, the room is black — see `chess/game.js`.
+    prop: 'Chess_set',
+    label: 'Chess',
+    view: 'Detail — chess set',
+    // Fitted as the flat square it is, and looked at from white's side of the board,
+    // a little steeper than a player sits, so every rank is clear of the one in front.
+    // `dir` is in world space: the set stands turned 85.7° (its `TRANSFORM`), so
+    // white's edge faces −x, and the vector is that edge lifted to 55°.
+    fit: 'flat',
+    distance: 0.9,
+    dir: [-0.57, 0.82, -0.04],
+    lift: 0,
+  },
 };
 
 /** How much room is left around a framed prop; 1 would touch the viewport edges. */

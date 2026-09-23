@@ -17,11 +17,13 @@
     "shrink:textures": "node scripts/shrink-textures.mjs",
     "textures": "bash scripts/extract-desk-textures.sh",
     "apple": "bash scripts/import-apple-models.sh",
+    "stockfish": "bash scripts/import-stockfish.sh",
     "split": "bash scripts/split-display-mount.sh",
     "wall": "python3 scripts/extract-wall-texture.py",
     "floor": "bash scripts/copy-floor-tiles.sh"
   },
   "dependencies": {
+    "chess.js": "^1.4.0",
     "three": "^0.180.0"
   },
   "devDependencies": {

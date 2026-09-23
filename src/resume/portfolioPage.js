@@ -15,6 +15,13 @@ import { FONT, wrap } from './screen.js';
  * It is a page, not a screen: black ink on off-white, set in the room's own face. The
  * canvas is portrait A4 at 150 dpi, which is enough to read from the tablet's distance
  * without paying for a 4K map on a 20 cm prop.
+ *
+ * And it is *one* page, whatever the copy grows to. The sheet is laid out, measured
+ * against the footer and, if it runs past, laid out again with less — what it gives up,
+ * in order: the rest of a project's description after its first sentence and a role's
+ * second bullet (`LEVEL` 1); the side projects after the first two (`LEVEL` 2); and only
+ * then the type, a step at a time down to `MIN_SCALE`. Header, summary, education and
+ * footer are never cut: the page stays a complete CV, and it is the middle that condenses.
  */
 
 /** A4 at 150 dpi. */
@@ -26,19 +33,39 @@ const INK = '#1b1b1f';
 const INK_DIM = '#45494f';
 const RULE = '#c9c6bf';
 
-/** How many of a role's bullet points make the sheet. */
+/** How many of a role's bullet points make the sheet at full length. */
 const POINTS_PER_ROLE = 2;
 
-/** Type sizes in canvas pixels, and line heights as multiples of them. */
-const T = {
-  name: 54,
-  role: 24,
-  meta: 19,
-  heading: 17,
-  body: 19,
-  small: 17,
-  lead: 1.4,
-};
+/** How many side projects survive the second round of condensing. */
+const CARDS_KEPT = 2;
+
+/** How far the type may shrink before the page is called full, and by what steps. */
+const MIN_SCALE = 0.8;
+const SCALE_STEP = 0.05;
+
+/** Type sizes in canvas pixels at a given scale, and line height as a multiple. */
+function sizes(scale) {
+  return {
+    name: 54 * scale,
+    role: 24 * scale,
+    meta: 19 * scale,
+    heading: 17 * scale,
+    body: 19 * scale,
+    small: 17 * scale,
+    lead: 1.4,
+  };
+}
+
+/** The pass being drawn: its type sizes and how much has been given up. Set by `layout`. */
+let T = sizes(1);
+let LEVEL = 0;
+
+const MARGIN = 84;
+
+/** Where the footer's rule sits; the body has to end above it. */
+function footerTop() {
+  return PAGE_H - MARGIN - T.small * 2 - T.body;
+}
 
 /** Draws the sheet and returns the canvas. */
 export function drawPortfolioPage() {
@@ -47,22 +74,60 @@ export function drawPortfolioPage() {
   canvas.height = PAGE_H;
   const ctx = canvas.getContext('2d');
 
+  // Lay it out until it fits: first with less copy, then with smaller type. The last
+  // pass stays on the canvas whether or not it fit — at the floor there is nothing
+  // more to give, and a crowded footer beats a missing one.
+  const passes = [];
+  for (let level = 0; level <= 2; level++) passes.push([1, level]);
+  for (let scale = 1 - SCALE_STEP; scale >= MIN_SCALE - 1e-9; scale -= SCALE_STEP) {
+    passes.push([scale, 2]);
+  }
+  for (const [scale, level] of passes) {
+    if (layout(ctx, scale, level) <= footerTop()) break;
+  }
+
+  return canvas;
+}
+
+/** One complete drawing of the sheet at `scale` and `level`; returns where the body ends. */
+function layout(ctx, scale, level) {
+  T = sizes(scale);
+  LEVEL = level;
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.textAlign = 'left';
   ctx.fillStyle = PAPER;
   ctx.fillRect(0, 0, PAGE_W, PAGE_H);
 
-  const margin = 84;
-  const width = PAGE_W - margin * 2;
-  let y = margin;
+  const width = PAGE_W - MARGIN * 2;
+  let y = MARGIN;
 
-  y = header(ctx, margin, y, width);
-  y = summary(ctx, margin, y, width);
-  y = experience(ctx, margin, y, width);
-  y = projects(ctx, margin, y, width);
-  y = stack(ctx, margin, y, width);
-  y = education(ctx, margin, y, width);
-  footer(ctx, margin, width);
+  y = header(ctx, MARGIN, y, width);
+  y = summary(ctx, MARGIN, y, width);
+  y = experience(ctx, MARGIN, y, width);
+  y = projects(ctx, MARGIN, y, width);
+  y = stack(ctx, MARGIN, y, width);
+  y = education(ctx, MARGIN, y, width);
+  footer(ctx, MARGIN, width);
 
-  return canvas;
+  return y;
+}
+
+/**
+ * The bullets a one-page CV keeps: the hard part and the result of a case study over
+ * the how, else the first ones.
+ */
+function sheetPoints(points, n) {
+  const pick = (label) => points.find((p) => p.startsWith(label));
+  const chosen = [pick('The hard part'), pick('Result')].filter(Boolean);
+  for (const p of points) if (chosen.length < n && !chosen.includes(p)) chosen.push(p);
+  return chosen.slice(0, n);
+}
+
+/** The first sentence of a description, for when the page has no room for the rest. */
+function firstSentence(text) {
+  const end = text.search(/[.!?](\s|$)/);
+  return end === -1 ? text : text.slice(0, end + 1);
 }
 
 function header(ctx, x, y, width) {
@@ -134,7 +199,7 @@ function experience(ctx, x, y, width) {
 
     ctx.fillStyle = INK;
     ctx.font = `400 ${T.body}px ${FONT}`;
-    for (const point of item.points.slice(0, POINTS_PER_ROLE)) {
+    for (const point of sheetPoints(item.points, LEVEL >= 1 ? 1 : POINTS_PER_ROLE)) {
       y = bullet(ctx, x, y, width, point, T.body);
     }
     y += T.body * 0.5;
@@ -147,8 +212,8 @@ function projects(ctx, x, y, width) {
   const label = section.blocks.find((b) => b.kind === 'heading')?.text ?? 'Projects';
   y = heading(ctx, x, y, label);
 
-  const cards = section.blocks.find((b) => b.kind === 'cards');
-  for (const card of cards?.items ?? []) {
+  const cards = section.blocks.find((b) => b.kind === 'cards')?.items ?? [];
+  for (const card of LEVEL >= 2 ? cards.slice(0, CARDS_KEPT) : cards) {
     ctx.fillStyle = INK;
     ctx.font = `600 ${T.body}px ${FONT}`;
     const title = `${card.title} — `;
@@ -156,7 +221,8 @@ function projects(ctx, x, y, width) {
     const indent = ctx.measureText(title).width;
 
     ctx.font = `400 ${T.body}px ${FONT}`;
-    const first = wrap(ctx, card.desc, width - indent);
+    const desc = LEVEL >= 1 ? firstSentence(card.desc) : card.desc;
+    const first = wrap(ctx, desc, width - indent);
     ctx.fillText(first[0], x + indent, y);
     y += T.body * T.lead;
     if (first.length > 1) {
@@ -221,7 +287,7 @@ function education(ctx, x, y, width) {
 }
 
 function footer(ctx, x, width) {
-  const y = PAGE_H - 84 - T.small;
+  const y = PAGE_H - MARGIN - T.small;
   rule(ctx, x, y - T.small, width);
   ctx.fillStyle = INK_DIM;
   ctx.font = `400 ${T.small}px ${FONT}`;

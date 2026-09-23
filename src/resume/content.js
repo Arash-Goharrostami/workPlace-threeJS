@@ -22,10 +22,7 @@ export const PROFILE = {
   email: 'arash.goharrostami@gmail.com',
 };
 
-/** Where `panels.js` looks for the CV. Drop the file in `public/cv/` to arm the button. */
-export const CV_URL = 'cv/Arash-Goharrostami.pdf';
-
-/** The name the browser saves it under. */
+/** The name the browser saves the CV under — the PDF is built from the sheet (`pdf.js`). */
 export const CV_FILENAME = 'Arash-Goharrostami-CV.pdf';
 
 /** The pool the pad's notes are drawn from — one line each, as they would be jotted. */
@@ -177,16 +174,15 @@ export const SECTIONS = {
           },
           {
             date: 'Jan 2024 — Dec 2024',
-            role: 'Software Engineer — Full-stack & Mobile',
+            role: 'Senior Software Engineer — Full-stack & Mobile',
             org: 'Senjed — school transportation super app',
             desc:
-              'A platform for school transport with three sides to it — drivers, parents ' +
-              'and the transport companies — built around live vehicle tracking. A core ' +
-              'Express backend in JavaScript with the real-time and event services ' +
-              'around it on RabbitMQ, deployed on Kubernetes; a React and TypeScript web ' +
-              'front with the operations dashboard; and an Android app for each role. I ' +
-              'built the real-time backbone and worked across the backend, the dashboard ' +
-              'and the apps.',
+              'A nationwide platform for school transport with three sides — drivers, ' +
+              'parents and the transport companies — built around one thing: a parent ' +
+              'watching their child\'s bus move on a map, live. I was the team\'s senior ' +
+              'engineer: I built the real-time backbone, the company app end to end, and ' +
+              '60–70% of the driver and parent apps — and, as the only one with a Mac, ' +
+              'every iOS build shipped through me.',
             tags: [
               { name: 'Express', icon: 'express' },
               { name: 'JavaScript', icon: 'javascript' },
@@ -200,11 +196,10 @@ export const SECTIONS = {
               { name: 'Docker', icon: 'docker' },
             ],
             points: [
-              'Live vehicle tracking over WebSockets holding 10,000+ concurrent connections.',
-              'Event-driven services on RabbitMQ processing 1M+ events a day.',
-              'React + TypeScript dashboard for companies: routes, drivers, students and live buses.',
-              'Android apps for drivers, parents and companies on one shared API.',
-              'Containerised services deployed and scaled on Kubernetes.',
+              'The hard part — live tracking. Thousands of buses and parents on one map at once, on mobile networks that drop, without the position ever going stale.',
+              'How — learned Socket.io properly and built the tracking channel in Express until it held; then put RabbitMQ behind it and split it into services so the socket layer could never be the thing that fell over.',
+              'Result — a nationwide user base on live tracking: 10,000+ concurrent WebSockets and 1M+ events a day, deployed and scaled on Kubernetes.',
+              'Three apps on one API: company (all mine), driver and parent (60–70%); React + TypeScript dashboard for routes, drivers, students and live buses.',
             ],
           },
           {
@@ -229,24 +224,24 @@ export const SECTIONS = {
           },
           {
             date: 'May 2022 — Jan 2023',
-            role: 'Software Engineer — Backend, Web & Android',
-            org: 'Kavaran — voting & polling platform',
+            role: 'Software Engineer — sole developer',
+            org: 'Choob Khavaran — shareholder & elections platform for Iran\'s wood merchants\' guild',
             desc:
-              'Votes, polls and live results for organisations. I designed the hybrid ' +
-              'SQL/NoSQL storage — transactional on the vote, scalable on the aggregation — ' +
-              'and the real-time results channel, and shipped the web management console ' +
-              'and the Android client on the same contracts.',
+              'The company behind Iran\'s wood merchants\' guild needed one place for its ' +
+              'shareholders, owners and factories: who holds what, transfers and sales of ' +
+              'shares, proxies, auctions — and its internal elections. I built the whole ' +
+              'thing alone, NestJS on the backend and Next.js on the front.',
             tags: [
-              { name: 'Node.js', icon: 'nodejs' },
+              { name: 'NestJS', icon: 'nestjs' },
+              { name: 'TypeScript', icon: 'typescript' },
+              { name: 'Next.js', icon: 'nextjs' },
               { name: 'PostgreSQL', icon: 'postgresql' },
-              { name: 'MongoDB', icon: 'mongodb' },
-              { name: 'WebSockets', icon: 'websocket' },
-              { name: 'Kotlin', icon: 'kotlin' },
             ],
             points: [
-              'Hybrid SQL/NoSQL models: transactional voting, scalable result aggregation.',
-              'Concurrency-safe voting workflows with live results and no client polling.',
-              'Web management interfaces plus the Android client on one API.',
+              'The hard part — the vote. An internal election among shareholders has to be exact and impossible to game: one vote per share, nobody voting twice, a result anyone can audit.',
+              'How — votes written as an append-only record under database transactions, eligibility and weight resolved from the share register at the moment the ballot opens, and every action logged so a tally can be re-run from the raw votes.',
+              'Result — in production today, running as the guild\'s CRM: every member, share, proxy and election lives in it.',
+              'Full dashboard: shareholder and owner registers, factory profiles, share transfer and sale, proxies, auctions.',
             ],
           },
         ],
@@ -255,6 +250,27 @@ export const SECTIONS = {
       {
         kind: 'cards',
         items: [
+          {
+            meta: 'Side project · 360° tours · 2019–2021',
+            title: 'VTourMaker',
+            tags: [
+              { name: 'Laravel', icon: 'laravel' },
+              { name: 'PHP', icon: 'php' },
+              { name: 'React', icon: 'react' },
+              { name: 'TypeScript', icon: 'typescript' },
+            ],
+            desc:
+              'A friend and I wanted estate agents to walk a buyer through a villa without ' +
+              'leaving the shop. We had no 360° camera, so we teamed up with someone who ' +
+              'did, shot the houses ourselves and built the tool: the whole backend in ' +
+              'Laravel, and about half the React + TypeScript front alongside a friend ' +
+              'who was new to TS.',
+            points: [
+              'The hard part — the panoramas. Storing and serving the 360° images was its own problem on the backend, and the viewer library we picked was good but not good enough.',
+              'How — wrote our own panorama viewer from scratch: projection, navigation between rooms, and the loading it needed to feel instant.',
+              'Result — sold as a package to several villa-rental owners and a hotel for showing its rooms; what began as a tool for estate agents became a feature for villa rentals.',
+            ],
+          },
           {
             meta: 'Side project · this room',
             title: 'The room you are standing in',
@@ -791,6 +807,17 @@ export const SECTIONS = {
     propMode: 'sheet',
     eyebrow: 'Document',
     title: 'Curriculum vitae',
+    blocks: [],
+  },
+
+  chess: {
+    // Played on the prop: the set on the desk is the section, and the game is the
+    // content — see `chess/game.js`. Nothing to put beside it but the small card the
+    // game shows itself.
+    onProp: true,
+    propMode: 'chess',
+    eyebrow: 'Break',
+    title: 'A game of chess',
     blocks: [],
   },
 
