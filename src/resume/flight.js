@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { setupIdleOrbit } from './idleOrbit.js';
 
 /**
  * The camera's travel between the room overview and a prop.
@@ -53,6 +54,13 @@ const ARC_LIFT = THREE.MathUtils.degToRad(25);
 const ARC_HOLD = 0.35;
 
 /**
+ * How far an inward flight (see `to`) bows toward the middle of the room at its
+ * midpoint, as a share of the way from the straight line there to the room's centre.
+ * The guitar → phone trip is one: flown straight, it passes through the desk.
+ */
+const INWARD = 0.35;
+
+/**
  * How close the wheel may come in the wide shot, as a share of that shot's own
  * distance. The room's floor (`dolly.min`) is sized for orbiting inside the room;
  * from outside it lets the camera through a wall. The wide fit is about 2.4× the
@@ -62,6 +70,16 @@ const WIDE_DOLLY_IN = 0.55;
 
 /** …and of the room's default angle, when nothing is open. */
 const OVERVIEW_AZIMUTH = THREE.MathUtils.degToRad(75);
+
+/**
+ * How far either way of the loaded heading the idle pan (see `idleOrbit.js`) may
+ * swing in the wide shot, and how far past that the right side alone overshoots.
+ * Narrower than `OVERVIEW_AZIMUTH`: the wide shot is framed from further out and at
+ * a wider lens than the desk view is, so the same 75° there was enough to swing the
+ * camera past a wall's edge and show its unlit back face.
+ */
+const IDLE_ORBIT_HALF_BAND = THREE.MathUtils.degToRad(40);
+const IDLE_ORBIT_OVERSHOOT = THREE.MathUtils.degToRad(6);
 
 /**
  * How far the camera may rise or fall from an open prop's own viewing height. A screen
@@ -78,7 +96,7 @@ const OPEN_POLAR = THREE.MathUtils.degToRad(12);
  */
 const OPEN_DOLLY = { in: 0.7, out: 1.35 };
 
-export function setupFlight({ camera, controls, canvas }) {
+export function setupFlight({ camera, controls, canvas, idleMs, idleOrbitEnabled }) {
   // Where the room sits when nothing is open: whatever `loadModel` framed it to, until
   // the opening flight (`fly`) lands somewhere else and makes that the overview.
   let overview = {
@@ -90,6 +108,19 @@ export function setupFlight({ camera, controls, canvas }) {
   // The wide shot the room loaded at, kept once the intro has moved the overview off
   // it: a click on empty room from the overview goes back up to it.
   const wide = { cam: overview.cam.clone(), tgt: overview.tgt.clone(), view: overview.view };
+  /** The heading and tilt the room loaded at — fixed, since `wide` itself never moves. */
+  const wideAzimuth = Math.atan2(wide.cam.x - wide.tgt.x, wide.cam.z - wide.tgt.z);
+  const widePolar = new THREE.Spherical().setFromVector3(wide.cam.clone().sub(wide.tgt)).phi;
+  // The slow right-then-left sweep the room falls into on a phone once nothing has
+  // touched the wide shot for a while — the very first thing shown, before the
+  // opening click flies down to the desk — see `idleOrbit.js`. Centred on the room's
+  // loaded heading, since the wide shot never moves; also eases any up/down tilt the
+  // user left it at back to the loaded angle.
+  const idleOrbit = setupIdleOrbit({
+    camera, controls, idleMs, enabled: idleOrbitEnabled,
+    centre: () => wideAzimuth, halfBand: () => IDLE_ORBIT_HALF_BAND,
+    overshoot: () => IDLE_ORBIT_OVERSHOOT, defaultPolar: () => widePolar,
+  });
   // Whatever the room was set up with, to be put back the moment nothing is open.
   const polar = { min: controls.minPolarAngle, max: controls.maxPolarAngle };
   // …and the room's zoom range, which an open prop narrows to a step either side of
@@ -158,7 +189,7 @@ export function setupFlight({ camera, controls, canvas }) {
    * whether it is a line or an arc (see `ARC_FROM`): the spherical coordinates of both
    * ends about their targets, the azimuth delta wrapped to the short way round.
    */
-  const startFlight = ({ camTo, tgtTo, voffTo, duration }) => {
+  const startFlight = ({ camTo, tgtTo, voffTo, duration, inward = false }) => {
     const camFrom = camera.position.clone();
     const tgtFrom = controls.target.clone();
     const from = new THREE.Spherical().setFromVector3(camFrom.clone().sub(tgtFrom));
@@ -171,6 +202,7 @@ export function setupFlight({ camera, controls, canvas }) {
       start: performance.now(),
       duration,
       arc: Math.abs(delta) > ARC_FROM ? { from, end, delta } : null,
+      inward,
     };
   };
 
@@ -180,7 +212,7 @@ export function setupFlight({ camera, controls, canvas }) {
    * own axis and the *lens* shifts instead, so the prop lands in the free half
    * without the framing going oblique.
    */
-  const to = (anchor, panelWidth = 0) => {
+  const to = (anchor, panelWidth = 0, { inward = false } = {}) => {
     const target = anchor ?? overview;
     const camTo = target.cam.clone();
     const tgtTo = target.tgt.clone();
@@ -195,10 +227,11 @@ export function setupFlight({ camera, controls, canvas }) {
       camTo.sub(tgtTo).multiplyScalar(pullback).add(tgtTo);
     }
 
-    startFlight({ camTo, tgtTo, voffTo, duration: anchor ? FLIGHT_MS : RETURN_MS });
+    startFlight({ camTo, tgtTo, voffTo, duration: anchor ? FLIGHT_MS : RETURN_MS, inward });
     open = anchor ?? null;
     openDist = anchor ? camTo.distanceTo(tgtTo) : 0;
     wideView = false;
+    idleOrbit.poke();
     return target.view;
   };
 
@@ -218,6 +251,7 @@ export function setupFlight({ camera, controls, canvas }) {
     startFlight({ camTo: cam.clone(), tgtTo: tgt.clone(), voffTo: 0, duration: FLIGHT_MS });
     open = null;
     openDist = 0;
+    idleOrbit.poke();
   };
 
   /** Back up to the wide shot, with nothing open; the overview stays where it is. */
@@ -226,6 +260,7 @@ export function setupFlight({ camera, controls, canvas }) {
     open = null;
     openDist = 0;
     wideView = true;
+    idleOrbit.poke();
     return wide.view;
   };
 
@@ -270,6 +305,13 @@ export function setupFlight({ camera, controls, canvas }) {
           .add(controls.target);
       } else {
         camera.position.lerpVectors(flight.camFrom, flight.camTo, e);
+        if (flight.inward) {
+          // Bowed toward the room's centre on the floor plane, most at the midpoint
+          // and not at all at either end, so take-off and landing are unchanged.
+          const bow = INWARD * Math.sin(Math.PI * e);
+          camera.position.x += (wide.tgt.x - camera.position.x) * bow;
+          camera.position.z += (wide.tgt.z - camera.position.z) * bow;
+        }
       }
       voff = flight.voffFrom + (flight.voffTo - flight.voffFrom) * e;
       applyOffset();
@@ -279,6 +321,8 @@ export function setupFlight({ camera, controls, canvas }) {
       // that is when the drift is actually seen.
       applyOffset();
     }
+
+    idleOrbit.step(dt, !flight && !open && wideView && controls.enabled);
 
     // Free rein mid-flight — clamping a trip in progress would stop it short of the
     // prop it is travelling to, or, worse, shove it at the start: the trip back from
@@ -322,7 +366,16 @@ export function setupFlight({ camera, controls, canvas }) {
       // From outside, a drag reads as turning the room in the hand, so the wide shot
       // keeps the stock sense; the desk view alone is inverted (see `main.js`).
       controls.rotateSpeed = 1;
-      // The wide shot of the whole room orbits freely, all the way round.
+      // The wide shot of the whole room orbits freely, all the way round, whether or
+      // not the idle pan (see `idleOrbit.js`) is under way: the pan writes the camera
+      // itself and a real drag stops it before this runs again next frame (see
+      // `pokeIdle` in `main.js`), so nothing here needs to fence it in — and clamping
+      // it would: `OrbitControls` enforces `min`/`maxAzimuthAngle` by snapping the
+      // camera into range the instant it tightens, in a single frame, which is exactly
+      // the jump this used to cause the moment the pan armed with the camera turned
+      // well outside its band (behind the room, say) — the pan's own easing never got
+      // a chance to carry it in. Left free, `idleOrbit` reaches in from wherever the
+      // camera is at its own slow pace instead.
       controls.minAzimuthAngle = -Infinity;
       controls.maxAzimuthAngle = Infinity;
       controls.minPolarAngle = polar.min;
@@ -371,6 +424,7 @@ export function setupFlight({ camera, controls, canvas }) {
     // to its idle rate once this is false (see `main.js`).
     get moving() {
       return flight !== null
+        || idleOrbit.active
         || Math.abs(drift.x - lean.x) > SETTLED || Math.abs(drift.y - lean.y) > SETTLED
         || Math.abs((wideView ? 0 : 1) - strength) > SETTLED;
     },
@@ -378,5 +432,9 @@ export function setupFlight({ camera, controls, canvas }) {
     get atOverview() { return atOverview(); },
     /** Whether the room is resting at (or flying to) the wide shot rather than the desk. */
     get wideView() { return wideView; },
+    /** Whether the idle pan (see `idleOrbit.js`) is actively turning the room right now. */
+    get idleOrbiting() { return idleOrbit.active; },
+    /** Cancels the idle pan immediately — called on any real user input. */
+    pokeIdle() { idleOrbit.poke(); },
   };
 }

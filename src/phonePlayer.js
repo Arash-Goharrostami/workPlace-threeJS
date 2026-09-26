@@ -24,12 +24,15 @@ import * as THREE from 'three';
 const TEXT_FONT = '"Avenir Next", "Futura", "Helvetica Neue", Helvetica, sans-serif';
 
 /** The card, and the margin the parts keep inside it. */
-const CARD_W = 0.058;
+const CARD_W = 0.065;           // near the screen's full width, a small margin each side
 const CARD_L = 0.046;
-const CARD_Z = 0.0305;          // its middle, measured up the screen
+const CARD_Z = 0.039;           // its middle, just under the status bar
 const PAD = 0.004;
 
 const TOP = CARD_Z + CARD_L / 2;
+
+/** Where the card ends, for the app row laid out under it. */
+export const PLAYER_BOTTOM = CARD_Z - CARD_L / 2;
 const LEFT = CARD_W / 2 - PAD;    // in x, and the screen's left is +x
 const RIGHT = -LEFT;
 
@@ -41,7 +44,7 @@ const INK = '#f6f4ef';
 const INK_DIM = 'rgba(246, 244, 239, 0.62)';
 
 /** The glass itself and its lens edge, shared by the card and every disc on it. */
-const GLASS_FILL = 'rgba(255, 255, 255, 0.28)';
+const GLASS_FILL = 'rgba(255, 255, 255, 0.16)';
 const GLASS_RIM = 'rgba(255, 255, 255, 0.95)';
 const GLASS_RIM_FADE = 'rgba(255, 255, 255, 0.18)';
 
@@ -73,12 +76,8 @@ export function buildPhonePlayer(parent, { screenY }) {
   // Translucent, so it no longer writes depth — and everything laid on it is translucent
   // too, so the distance sort between them is a coin toss at a third of a millimetre
   // apart. `renderOrder` settles it below: the card first, everything on it after.
-  const card = canvasPanel(group, CARD_W, CARD_L, 1024, 812, 'iphone-player-card');
+  const card = glassPanel(group, CARD_W, CARD_L, 0.08, 'iphone-player-card');
   card.mesh.position.set(0, Y.card, CARD_Z);
-  card.mesh.material.roughness = 0.6;
-  card.mesh.material.emissiveIntensity = 0.4;
-  card.mesh.material.alphaTest = 0;
-  drawGlass(card, { radius: 0.08 });
 
   // ---- artwork, top left -------------------------------------------------
   const ART = 0.0115;
@@ -355,6 +354,20 @@ function canvasPanel(parent, w, l, cw, ch, name) {
   mesh.name = name;
   parent.add(mesh);
   return { mesh, canvas, ctx, tex };
+}
+
+/**
+ * A flat pane of Liquid Glass, `w` by `l`, lying on the screen: the card's pane, and the
+ * dock's in `iphone15Pro.js`, so the two are the same glass. `radius` is the corner as a
+ * share of the width. Its canvas follows the pane's aspect, so the rim is even all round.
+ */
+export function glassPanel(parent, w, l, radius, name) {
+  const panel = canvasPanel(parent, w, l, 1024, Math.round(1024 * (l / w)), name);
+  panel.mesh.material.roughness = 0.6;
+  panel.mesh.material.emissiveIntensity = 0.4;
+  panel.mesh.material.alphaTest = 0;
+  drawGlass(panel, { radius });
+  return panel;
 }
 
 /**

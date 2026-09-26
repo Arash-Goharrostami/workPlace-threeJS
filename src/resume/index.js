@@ -1,4 +1,5 @@
 import { buildAnchors, reframeAnchors, SECTION_ORDER } from './anchors.js';
+import { guitarView, setupGuitarPlay } from '../guitarPlay.js';
 import { dropIn, jiggle, SPRING_OVER } from '../droplet.js';
 import { setupFlight, FLIGHT_MS } from './flight.js';
 import { setupPicking } from './picking.js';
@@ -56,13 +57,15 @@ const TOUCH_SLOP = 6;
 
 /** Matches the breakpoint where `index.html` turns the sidebar into a bottom sheet. */
 const SHEET = window.matchMedia('(max-width: 760px)');
+/** Honoured by the idle pan (see `idleOrbit.js`) and the dock icons' own wobble. */
+const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)');
 
-export function setupResume({ scene, camera, renderer, controls, model, onSound, onFocus }) {
+export function setupResume({ scene, camera, renderer, controls, model, onSound, onFocus, idleMs, guitarSound }) {
   const canvas = renderer.domElement;
   const anchors = buildAnchors(model, camera);
   if (!Object.keys(anchors).length) {
     console.warn('[resume] no props resolved — leaving the room as a plain viewer');
-    return { update() {}, intro() {}, isFlying: () => false, isBusy: () => false, lockZoomOut() {}, blurb: { dismiss() {}, reopen() {} } };
+    return { update() {}, intro() {}, isFlying: () => false, isBusy: () => false, lockZoomOut() {}, pokeIdle() {}, blurb: { dismiss() {}, reopen() {} } };
   }
 
   const introEl = document.getElementById('intro');
@@ -105,7 +108,10 @@ export function setupResume({ scene, camera, renderer, controls, model, onSound,
     });
   }
 
-  const flight = setupFlight({ camera, controls, canvas });
+  const flight = setupFlight({
+    camera, controls, canvas, idleMs,
+    idleOrbitEnabled: () => !REDUCED_MOTION.matches,
+  });
   const outlines = setupOutlines(model);
   const screens = setupScreens();
   // A section read on its prop rather than beside it, of which there are two kinds: the
@@ -154,17 +160,20 @@ export function setupResume({ scene, camera, renderer, controls, model, onSound,
     camera,
     canvas,
     outlines,
-    // Clickable on its own, so a click on it is not a click on nothing.
-    swallow: [model.getObjectByName('Guitar_on_stand')].filter(Boolean),
+    // Clickable on their own, so a click on one is not a click on nothing.
+    swallow: [model.getObjectByName('Guitar_on_stand'), model.getObjectByName('Set_OpenBook_2'),
+      model.getObjectByName('Magic_Mouse'), model.getObjectByName('Blender_mug'),
+      model.getObjectByName('Rubiks_cube'), model.getObjectByName('Apple_Pencil'),
+      model.getObjectByName('AirPods_Max'), model.getObjectByName('HomePod_mini'),
+      model.getObjectByName('HomePod_mini_2')].filter(Boolean),
     onOpen: (key) => open(key),
     // With nothing open, a click on empty room flies back to the overview — the way
-    // home after orbiting or zooming away — and, from the overview itself, up to the
-    // wide shot of the room; the next one comes back down. Not mid-flight: a click
-    // during the opening trip would restart it.
+    // home after orbiting or zooming away, or down from the wide shot. From the
+    // overview itself it does nothing: going up to the wide shot is the view button's
+    // job alone. Not mid-flight: a click during the opening trip would restart it.
     onMiss: () => {
-      if (openKey || flight.flying) return;
-      if (flight.atOverview) flight.toWide();
-      else flight.to(null, 0);
+      if (openKey || flight.flying || flight.atOverview) return;
+      flight.to(null, 0);
     },
     // Click off the prop being read and the room comes back — the counterpart of the
     // back button, for anyone who never looks at the chrome.
@@ -199,12 +208,37 @@ export function setupResume({ scene, camera, renderer, controls, model, onSound,
   let revealTimer = 0;
 
   /**
+   * Applies `change` — a class that moves the dock — and slides each button from where
+   * it was to where it lands, so the dock travels into its corner and back rather than
+   * jumping. A FLIP: measured before and after, then played from the old spot.
+   */
+  function moveDock(change) {
+    const buttons = [...dockEl.children];
+    const before = buttons.map((button) => button.getBoundingClientRect());
+    change();
+    if (REDUCED_MOTION.matches) return;
+    buttons.forEach((button, i) => {
+      const after = button.getBoundingClientRect();
+      // Hidden before or after (the view button in dock-only): nothing to travel.
+      if (!before[i].width || !after.width) return;
+      const dx = before[i].left - after.left;
+      const dy = before[i].top - after.top;
+      if (!dx && !dy) return;
+      button.animate(
+        [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }],
+        { duration: 450, easing: 'cubic-bezier(.22, .8, .24, 1)' },
+      );
+    });
+  }
+
+  /**
    * Steps back out of whatever is being read: a single focused print to its whole
    * composition first, otherwise the section to the room. Shared by the tap off the
    * prop and the phone's back button.
    */
   function dismiss() {
-    if (focused) focusFrame(openKey, null);
+    if (guitar?.active) leaveGuitar();
+    else if (focused) focusFrame(openKey, null);
     else open(null);
   }
   /** The single print being read inside an `onProp` section, if the camera is down on one. */
@@ -256,10 +290,21 @@ export function setupResume({ scene, camera, renderer, controls, model, onSound,
     // way out is back up to it, not down to the desk on the far side of the concrete.
     const wasOutside = !next && openKey === null && leaving && SECTIONS[leaving]?.outside;
     if (wasOutside) flight.toWide();
-    else flight.to(next ? anchors[next] : null, width);
+    // From the guitar to the phone the straight line runs through the desk, so that
+    // one trip bows in toward the middle of the room (see `INWARD` in `flight.js`).
+    else flight.to(next ? anchors[next] : null, width, { inward: guitar?.active && next === 'contact' });
 
-    toggle(introEl, !next);
-    toggle(dockEl, !next);
+    // Down on any prop, Menu, Contact and Sound stay to hand and move into the corner
+    // the name held; the name, the blurb and the view button go. A section with a
+    // text panel also sets `reading`, which on a phone lifts the dock clear of the
+    // bottom sheet.
+    if (guitar?.active) leaveGuitar({ fly: false });
+    moveDock(() => {
+      document.body.classList.toggle('dock-only', Boolean(next));
+      document.body.classList.toggle('reading', Boolean(next && hasPanel(SECTIONS[next])));
+    });
+    toggle(introEl, true);
+    toggle(dockEl, true);
     // Only ever displayed on a phone — the stylesheet keeps it off a desktop.
     backBtn.hidden = !next;
     closeMenu();
@@ -283,6 +328,49 @@ export function setupResume({ scene, camera, renderer, controls, model, onSound,
     if (next && hasPanel(SECTIONS[next])) {
       revealTimer = setTimeout(() => panels.reveal(next), FLIGHT_MS * 0.5);
     }
+  }
+
+  // The guitar: not a section — nothing to read — but a prop to fly down to and play.
+  // A click on it from the room flies in and hands the pointer to `guitarPlay.js`; the
+  // orbit is locked the whole time, so a drag strums rather than turns the room. Only
+  // from the room at rest, like `onMiss`: not over a section, and not mid-flight.
+  const guitarObject = model.getObjectByName('Guitar_on_stand');
+  const guitarAnchor = guitarObject && guitarSound
+    ? guitarView(guitarObject, camera)
+    : null;
+  const guitar = guitarAnchor
+    ? setupGuitarPlay({
+      camera, canvas, guitar: guitarObject, sound: guitarSound,
+      onRequest: () => {
+        if (openKey || flight.flying || guitar.active) return;
+        flight.to(guitarAnchor, 0);
+        picking.setEnabled(false);
+        controls.enabled = false;
+        // Menu, Contact and Sound stay, as over the chess board; the name, the blurb and
+        // the view button go.
+        moveDock(() => document.body.classList.add('dock-only'));
+        backBtn.hidden = false;
+        closeMenu();
+        flight.setDrift(0, 0);
+        guitar.enter();
+      },
+      onExit: () => leaveGuitar(),
+    })
+    : null;
+
+  /**
+   * Puts the room back after the guitar. `fly: false` is for `open()`, which is leaving
+   * for a section from the dock and sets the camera, chrome and picking itself.
+   */
+  function leaveGuitar({ fly = true } = {}) {
+    if (!guitar?.active) return;
+    guitar.exit();
+    controls.enabled = true;
+    if (!fly) return;
+    flight.to(null, 0);
+    picking.setEnabled(true);
+    moveDock(() => document.body.classList.remove('dock-only'));
+    backBtn.hidden = true;
   }
 
   /** Run once a frame from the render loop, before `renderer.render`. */
@@ -410,7 +498,12 @@ export function setupResume({ scene, camera, renderer, controls, model, onSound,
   const isBusy = () => flight.moving || Object.values(onProp).some((group) => group.busy?.());
 
   const lockZoomOut = (minPolar) => flight.lockZoomOut(minPolar);
-  return { update, open, intro, isFlying, isBusy, lockZoomOut, blurb, get openKey() { return openKey; } };
+  const pokeIdle = () => flight.pokeIdle();
+  return {
+    update, open, intro, isFlying, isBusy, lockZoomOut, pokeIdle, blurb,
+    get openKey() { return openKey; },
+    get playingGuitar() { return guitar?.active ?? false; },
+  };
 }
 
 /** Fades a bit of chrome out without collapsing the layout the labels dodge around. */
@@ -605,7 +698,7 @@ function enterDock(menuBtn, icons) {
   }).then(() => { menuBtn.style.opacity = ''; });
 
   icons.forEach((icon, i) => {
-    if (typeof icon.animate !== 'function' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (typeof icon.animate !== 'function' || REDUCED_MOTION.matches) {
       icon.style.opacity = '';
       return;
     }
@@ -641,7 +734,9 @@ function setupMenu(menu, button) {
         width: menu.offsetWidth,
         height: menu.offsetHeight,
         circle: 44,
-        origin: SHEET.matches ? 'left bottom' : 'left top',
+        // Up from the dock at the foot of a phone; down from it anywhere else,
+        // including a phone reading a section, where the dock sits at the top.
+        origin: SHEET.matches && !document.body.classList.contains('reading') ? 'left bottom' : 'left top',
         label: [...menu.children],
         soft: true,
         duration: 520,

@@ -20,7 +20,8 @@
     "stockfish": "bash scripts/import-stockfish.sh",
     "split": "bash scripts/split-display-mount.sh",
     "wall": "python3 scripts/extract-wall-texture.py",
-    "floor": "bash scripts/copy-floor-tiles.sh"
+    "floor": "bash scripts/copy-floor-tiles.sh",
+    "magazine": "node scripts/magazine-pages.mjs"
   },
   "dependencies": {
     "chess.js": "^1.4.0",

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 
 /**
- * Click the guitar and it strums a chord.
+ * Click the guitar and it strums a chord — and, outside `?debug`, the camera flies in
+ * to it and it can be played (see `guitarPlay.js`).
  *
  * The guitar is not one of the resume's anchors — there is no section behind it — so it
  * is not wired through `resume/picking.js`. It also has to answer in every state of the
@@ -51,17 +52,16 @@ const CHORDS = {
 
 const CHORD_NAMES = Object.keys(CHORDS);
 
+/** No hand on the neck: every string rings at its own note. */
+const OPEN = [0, 0, 0, 0, 0, 0];
+
 /**
- * Makes `guitar` strum a random chord when clicked. Returns the strum itself, so it
- * can be fired from elsewhere — the console, say — as `strum()`.
+ * The guitar's voice, with nothing to do with clicks: six strings and the chords they
+ * make. Shared by the click-to-strum below and the close-up in `guitarPlay.js`, so the
+ * samples are fetched and decoded once whichever of the two touches the guitar first.
  */
-export function setupGuitarStrum({ camera, canvas, guitar }) {
-  if (!guitar) return null;
-
-  const raycaster = new THREE.Raycaster();
-  const pointer = new THREE.Vector2();
-
-  // Created on the first click, not at load: a context made before any gesture starts
+export function createGuitarSound() {
+  // Created on the first sound, not at load: a context made before any gesture starts
   // suspended, and Safari never lets it out. The samples are fetched and decoded then
   // too — 120 KB nobody who never touches the guitar has to download.
   let context = null;
@@ -85,38 +85,78 @@ export function setupGuitarStrum({ camera, canvas, guitar }) {
     return buffers;
   };
 
-  /** Picks a chord that is not the one just played and strums it. Returns its name. */
-  const strum = async () => {
+  /** Sounds string `i` (0 = low E) at `fret`, `delay` seconds from now. */
+  const play = (strings, i, fret, velocity, delay) => {
+    const source = context.createBufferSource();
+    source.buffer = strings[i];
+    // A fret is a semitone; the recording is the open string.
+    source.playbackRate.value = 2 ** (fret / 12);
+
+    const gain = context.createGain();
+    gain.gain.value = velocity;
+    source.connect(gain);
+    gain.connect(master);
+    source.start(context.currentTime + 0.01 + delay);
+    source.onended = () => gain.disconnect();
+  };
+
+  /**
+   * Strums `name` — a random chord other than the last when left out — low to high,
+   * or high to low when `up`. Returns the chord's name.
+   */
+  const strum = async (name = null, up = false) => {
     const strings = await ensureContext();
 
-    let name = lastChord;
-    while (name === lastChord) {
-      name = CHORD_NAMES[Math.floor(Math.random() * CHORD_NAMES.length)];
+    if (!name) {
+      name = lastChord;
+      while (name === lastChord) {
+        name = CHORD_NAMES[Math.floor(Math.random() * CHORD_NAMES.length)];
+      }
     }
     lastChord = name;
 
     // A little swing to each strum: how hard, and how quickly the hand crosses.
     const velocity = 0.75 + Math.random() * 0.25;
     const gap = STRUM_GAP * (0.7 + Math.random() * 0.6);
-    const start = context.currentTime + 0.01;
 
-    CHORDS[name].forEach((fret, i) => {
-      if (fret == null) return;
-      const source = context.createBufferSource();
-      source.buffer = strings[i];
-      // A fret is a semitone; the recording is the open string.
-      source.playbackRate.value = 2 ** (fret / 12);
-
-      const gain = context.createGain();
-      gain.gain.value = velocity;
-      source.connect(gain);
-      gain.connect(master);
-      source.start(start + i * gap);
-      source.onended = () => gain.disconnect();
-    });
-
+    const frets = CHORDS[name] ?? OPEN;
+    const order = up ? [5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5];
+    let step = 0;
+    for (const i of order) {
+      if (frets[i] == null) continue;
+      play(strings, i, frets[i], velocity, step * gap);
+      step += 1;
+    }
     return name;
   };
+
+  /**
+   * Plucks string `i` as `chord` frets it, `delay` seconds from now — its own open note
+ * when there is no chord. A string the chord leaves out is muted —
+   * crossing it makes no sound, as a fretting hand's damped string would not.
+   */
+  const pluck = async (i, chord, delay = 0) => {
+    const fret = chord ? CHORDS[chord]?.[i] : 0;
+    if (fret == null) return;
+    const strings = await ensureContext();
+    play(strings, i, fret, 0.7 + Math.random() * 0.2, delay);
+  };
+
+  return { strum, pluck, chords: CHORD_NAMES };
+}
+
+/**
+ * Makes `guitar` strum a random chord when clicked, whenever `enabled()` says so — not
+ * while the close-up in `guitarPlay.js` has the guitar, which plays it its own way.
+ * Returns the strum itself, so it can be fired from elsewhere — the console, say — as
+ * `strum()`.
+ */
+export function setupGuitarStrum({ camera, canvas, guitar, sound, enabled = () => true }) {
+  if (!guitar) return null;
+
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  const strum = () => sound.strum();
 
   const hits = (event) => {
     const rect = canvas.getBoundingClientRect();
@@ -135,7 +175,7 @@ export function setupGuitarStrum({ camera, canvas, guitar }) {
   canvas.addEventListener('pointerup', (event) => {
     const from = pressed;
     pressed = null;
-    if (!from) return;
+    if (!from || !enabled()) return;
     if (Math.hypot(event.clientX - from.x, event.clientY - from.y) > CLICK_SLOP) return;
     if (hits(event)) strum();
   });

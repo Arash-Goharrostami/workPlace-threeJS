@@ -382,17 +382,44 @@ export function setupChess({ group }) {
       store(STORAGE_LEVEL, String(engine.level));
     });
   }
-  newBtn?.addEventListener('click', () => newGame());
-  const showCard = (on) => card?.classList.toggle('is-open', on);
+  // A game under way is not thrown away on one tap: the modal asks first. A board that
+  // has not moved yet, or a game already over, starts again straight away.
+  const confirmEl = document.getElementById('chess-confirm');
+  const askNew = (on) => confirmEl?.classList.toggle('is-open', on);
+  newBtn?.addEventListener('click', () => {
+    if (confirmEl && chess.history().length && !chess.isGameOver()) askNew(true);
+    else newGame();
+  });
+  confirmEl?.querySelector('[data-yes]')?.addEventListener('click', () => {
+    askNew(false);
+    newGame();
+  });
+  confirmEl?.querySelector('[data-no]')?.addEventListener('click', () => askNew(false));
+  confirmEl?.addEventListener('click', (event) => {
+    if (event.target === confirmEl) askNew(false);
+  });
+  const showCard = (on) => {
+    card?.classList.toggle('is-open', on);
+    // The level is as wide as the dock's Menu pill below it, so the restart lines up
+    // over Contact: two rows of one set. Measured on opening — the pill's width is its
+    // label's, which only layout knows.
+    const menuBtn = document.getElementById('menu-btn');
+    if (on && levelEl && menuBtn?.offsetWidth) levelEl.style.width = `${menuBtn.offsetWidth}px`;
+    if (!on) askNew(false);
+  };
   const setStatus = (text) => {
-    if (statusEl) statusEl.textContent = text;
+    if (!statusEl) return;
+    statusEl.textContent = text;
+    statusEl.hidden = !text;
   };
 
   const status = () => {
     if (chess.isCheckmate()) return chess.turn() === 'w' ? STATUS.lose : STATUS.win;
     if (chess.isGameOver()) return STATUS.draw;
     if (chess.turn() === 'b') return STATUS.thinking;
-    return chess.isCheck() ? STATUS.check : STATUS.yours;
+    if (chess.isCheck()) return STATUS.check;
+    // Said once, before the first move; after that whose move it is goes without saying.
+    return chess.history().length ? '' : STATUS.yours;
   };
 
   /* ---- play --------------------------------------------------------------------- */

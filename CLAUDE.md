@@ -67,6 +67,11 @@ and keeping the soundboard whole gave 390 KB against 549 KB, with the front unto
 It always starts from `tmp/originals/<model>.orig.glb`, so re-running with different
 lists does not compound.
 
+`--size prefix=px,prefix=px` gives the images whose name starts with a prefix their own
+size limit, for the one surface seen far closer than the rest: `chessSet.glb` keeps
+`Chess_board_baseColor` at 2048 because the board is played on up close, while the
+pieces stay at 512.
+
 `--only prefix,prefix` keeps the meshes on matching nodes and strips the rest, for a model
 where most of the file is never rendered. `powerCable.glb` is the case: 95% of its
 triangles drew a cable that `buildCable()` draws procedurally, and only its plug and socket

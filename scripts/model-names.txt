@@ -57,3 +57,4 @@ magic-keyboard	magicKeyboard
 magic-mouse	magicMouse
 magic-trackpad	magicTrackpad
 pro-display-xdr	proDisplayXdr
+Apple_iPhone_15_Pro_Max_Black	iphone15ProMax

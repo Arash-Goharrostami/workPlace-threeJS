@@ -1,35 +1,41 @@
 import * as THREE from 'three';
-import { buildPhonePlayer } from './phonePlayer.js';
+import { loadGLB } from './gltfLoader.js';
+import { buildPhonePlayer, glassPanel } from './phonePlayer.js';
 
 /**
- * The iPhone 15 Pro, ported from the WorkDesk3D project — the one prop here built in
- * code rather than loaded from a file. Apple's published dimensions, 146.6 x 70.6 x
- * 8.25 mm, lying face-up with its long axis along z.
+ * The iPhone 15 Pro Max on the desk. The body (titanium band, back glass, camera
+ * plateau, buttons, port) is the imported `iphone15ProMax.glb`; the lit screen on top
+ * of it is still built in code, because it is live: a clock that follows the machine's,
+ * app tiles the resume taps and the Now Playing card.
  *
- * Three things changed in the port, all forced by this project:
+ * Everything drawn on the screen is marked `keepColor`, and so is every material the
+ * model brings, because `darkenScene()` would otherwise tint the titanium and, worse,
+ * the lit screen.
  *
- * - its images live under `textures/iphone/` here, so the paths come from TEXTURE_DIR
- *   rather than being page-root-relative;
- * - it imports `three` directly instead of taking it as an argument;
- * - every material it builds is marked `keepColor`, because `darkenScene()` would
- *   otherwise tint the titanium and, worse, the lit screen.
- *
- * It is also the only thing in this scene that repaints on a timer: the status-bar
- * clock is redrawn when the minute actually rolls over.
- *
- * Run `npm run apple` to (re-)copy the wallpaper and the icon art.
+ * The wallpaper is the model's own. Run `npm run apple` to (re-)copy the icon art.
  */
 
-/** Where `npm run apple` puts the wallpaper and the icons. */
+/** Where `npm run apple` puts the icons. */
 const TEXTURE_DIR = 'textures/iphone/';
 
-export const IPHONE_W = 0.0706;    // across the phone
-export const IPHONE_H = 0.1466;    // along it
-export const IPHONE_D = 0.00825;   // and its thickness, the body alone
-const CORNER_R = 0.0095;           // the rounded corners of the band
-const BEZEL = 0.0018;              // the 15 Pro's thin, even bezel
-const BUMP_H = 0.0015;             // how far the camera plateau stands proud
-const BUMP = 0.0355;               // and how big it is, square
+export const MODEL_URL = 'models/iphone15ProMax.glb';
+
+// The model is authored in centimetres, lying on its back with its length along +y
+// (top end up), its screen facing −z. The numbers below are measured off it.
+const MODEL_SCALE = 0.01;
+const MODEL_BACK_Z = 0.413;        // the back glass
+const MODEL_SCREEN = { w: 7.128, l: 15.403 };   // the model's own display panel
+const MODEL_ISLAND_Y = 7.21;       // the Dynamic Island's centre
+// The display's material, the phone's own wallpaper: node names do not survive the
+// shrink, material names do.
+const MODEL_DISPLAY_MATERIAL = 'pIJKfZsazmcpEiU';
+const MODEL_COVER_GLASS = 'zFdeDaGNRwzccye';
+
+export const IPHONE_W = 0.0768;    // across the phone
+export const IPHONE_H = 0.1595;    // along it
+export const IPHONE_D = 0.0103;    // back glass to screen glass
+const CORNER_R = 0.0095;           // the rounded corners of the screen
+const BUMP_H = 0.0020;             // how far the camera plateau stands proud
 
 // Face-up, the phone rests on its camera plateau, not on its back — so the
 // body sits a plateau's height off the ground and nothing sinks through it.
@@ -40,37 +46,15 @@ export const IPHONE_TOTAL_D = IPHONE_D + BUMP_H;
 // system default.
 const TEXT_FONT = '"Avenir Next", "Futura", "Helvetica Neue", Helvetica, sans-serif';
 
-export function buildIphone15Pro() {
+export async function buildIphone15Pro() {
   const root = new THREE.Group();
-  root.name = 'iphone-15-pro';
+  root.name = 'iphone-15-pro-max';
+  const gltf = await loadGLB(MODEL_URL);
 
   const M = {
-    titanium: new THREE.MeshStandardMaterial({ name: 'iphone_titanium', color: 0x8c8781, roughness: 0.38, metalness: 0.85 }),
-    backGlass: new THREE.MeshStandardMaterial({ name: 'iphone_back_glass', color: 0x6f6b66, roughness: 0.62, metalness: 0.25 }),
-    screen: new THREE.MeshStandardMaterial({ name: 'iphone_screen_glass', color: 0x08090b, roughness: 0.55, metalness: 0.1 }),
     island: new THREE.MeshStandardMaterial({ name: 'iphone_dynamic_island', color: 0x000000, roughness: 0.3, metalness: 0 }),
-    lensRing: new THREE.MeshStandardMaterial({ name: 'iphone_lens_ring', color: 0x9a958e, roughness: 0.3, metalness: 0.9 }),
     lensGlass: new THREE.MeshStandardMaterial({ name: 'iphone_lens_glass', color: 0x0a0d12, roughness: 0.06, metalness: 0.5 }),
     dark: new THREE.MeshStandardMaterial({ name: 'iphone_dark_trim', color: 0x141517, roughness: 0.5, metalness: 0.2 }),
-    flash: new THREE.MeshStandardMaterial({ name: 'iphone_flash', color: 0xd8c9a8, roughness: 0.35, metalness: 0.1 }),
-    // The screen on, showing the wallpaper from assets/. It is set as the
-    // emissive map as well as the colour map, so the picture lights itself
-    // instead of going dark wherever the scene lights don't reach. Matte, so the
-    // key light does not lie across the picture as a glossy patch — the glow is
-    // the emissive's, not a reflection's.
-    display: new THREE.MeshStandardMaterial({
-      name: 'iphone_display_on', color: 0x000000, roughness: 0.85, metalness: 0,
-      emissive: 0xffffff, emissiveIntensity: 0.42,
-    }),
-    // The dock: heavily frosted glass over the wallpaper — the picture is only
-    // a suggestion of colour through it, not a view of it. Cloudier and
-    // greyer than a tinted pane: the opacity does most of the work, and the
-    // emissive is kept low so it stays a milky panel rather than a lit one.
-    dock: new THREE.MeshStandardMaterial({
-      name: 'iphone_dock', color: 0x8b98a8, roughness: 0.75, metalness: 0.04,
-      emissive: 0x39424f, emissiveIntensity: 0.35,
-      transparent: true, opacity: 0.78, depthWrite: false,
-    }),
     // The page indicator's dots: the same self-lit white the status bar's
     // glyphs use, and a dimmed one for the pages you are not on.
     pageDot: new THREE.MeshStandardMaterial({
@@ -140,71 +124,55 @@ export function buildIphone15Pro() {
   body.rotation.y = Math.PI;
   root.add(body);
 
-  // ---- the titanium band, the full thickness -----------------------------
-  // One brushed piece rather than the Jolla's frame-plus-swappable-cover: on
-  // this phone there is no seam to show, the band runs from the front glass
-  // right round to the back.
-  slab(IPHONE_W, IPHONE_H, IPHONE_D, CORNER_R, M.titanium, 'iphone-frame', body)
-    .position.y = IPHONE_D / 2;
+  // ---- the imported body -------------------------------------------------
+  // Turned a quarter about x so its top end runs along +z and its screen faces up,
+  // then lifted so the back glass lands on y = 0 like the rest of this frame.
+  const model = gltf.scene;
+  model.name = 'iphone-model';
+  model.scale.setScalar(MODEL_SCALE);
+  model.rotation.x = Math.PI / 2;
+  model.position.y = MODEL_BACK_Z * MODEL_SCALE;
+  model.traverse((node) => {
+    if (!node.isMesh) return;
+    [].concat(node.material).forEach(keep);
+    // The screen's cover glass is see-through and glossy: it carried the lamp
+    // across the display as a white blob. The display under it is the surface.
+    if (node.material.name === MODEL_COVER_GLASS) node.visible = false;
+    // The model's own display is the wallpaper: the phone's default, lit by
+    // its emissive map so it does not go dark where the room's lights miss it.
+    if (node.material.name === MODEL_DISPLAY_MATERIAL) {
+      node.material.roughness = 0.9;
+      node.material.metalness = 0;
+      node.material.emissive.set(0xffffff);
+      node.material.emissiveIntensity = 0.7;
+    }
+  });
+  body.add(model);
 
-  // The matte back glass, inset inside the band, and the front glass, inset a
-  // little more. Both panes are given real thickness rather than a hairline,
-  // so they read as glass from the side and their wireframe twins show an
-  // edge, and each stands PROUD of the band — the screen a touch above the
-  // frame's top edge, the back glass the same below its bottom one — so the
-  // glass catches the light instead of disappearing into the titanium.
-  const BACK_T = 0.0016;
-  const GLASS_T = 0.0016;
-  const PROUD = 0.0004;
-  slab(IPHONE_W - 0.0012, IPHONE_H - 0.0012, BACK_T, CORNER_R - 0.0006,
-    M.backGlass, 'iphone-back', body).position.y = BACK_T / 2 - PROUD;
+  // The face of the screen glass: everything drawn on the display stacks up from it.
+  const SCREEN_TOP = IPHONE_D;
 
-  const glass = slab(IPHONE_W - 0.003, IPHONE_H - 0.003, GLASS_T, CORNER_R - 0.0015,
-    M.screen, 'iphone-screen', body);
-  glass.position.y = IPHONE_D - GLASS_T / 2 + PROUD;
-
-  // ---- the lit display ---------------------------------------------------
-  const DISPLAY_W = IPHONE_W - 0.003 - BEZEL * 2;
-  const DISPLAY_L = IPHONE_H - 0.003 - BEZEL * 2;
-  const display = slab(DISPLAY_W, DISPLAY_L, 0.0003, CORNER_R - 0.0025,
-    M.display, 'iphone-display', body);
-  display.position.y = IPHONE_D + PROUD + 0.00015;
-
-  // The wallpaper. An extruded shape's UVs are its own coordinates in meters,
-  // so the texture has to be scaled down to the panel's size and re-centred to
-  // land on it once, right way up, instead of tiling.
-  const wallpaper = new THREE.TextureLoader().load(TEXTURE_DIR + 'PhoneWallpaper.webp');
-  wallpaper.colorSpace = THREE.SRGBColorSpace;
-  wallpaper.wrapS = THREE.ClampToEdgeWrapping;
-  wallpaper.wrapT = THREE.ClampToEdgeWrapping;
-  // The centre stays at the origin: three.js subtracts it from the raw UVs
-  // *before* the repeat scales them, and these UVs are in meters, so a 0.5
-  // centre would shift the image half a meter across a 7 cm panel. Scaling
-  // about the origin and then offsetting by a half is what actually lands the
-  // whole picture on the screen.
-  wallpaper.center.set(0, 0);
-  wallpaper.repeat.set(1 / DISPLAY_W, 1 / DISPLAY_L);
-  wallpaper.offset.set(0.5, 0.5);
-  // The shape's y becomes -z when the slab is laid down, so the image arrives
-  // end-for-end; a half turn puts the top of the picture at the top of the
-  // phone.
-  wallpaper.rotation = Math.PI;
-  M.display.map = wallpaper;
-  M.display.emissiveMap = wallpaper;
-  M.display.needsUpdate = true;
+  // The screen's drawable area; the wallpaper under it is the model's own.
+  const DISPLAY_W = MODEL_SCREEN.w * MODEL_SCALE;
+  const DISPLAY_L = MODEL_SCREEN.l * MODEL_SCALE;
 
   // ---- the dock, along the bottom of the panel ---------------------------
   const DOCK_L = 0.0164;                 // the bar's depth, front to back
   const DOCK_INSET = 0.0028;             // and how far it sits off the bottom
   const ICON = 0.0108;
-  const ICON_GAP = 0.0036;
-  const SCREEN_Y = IPHONE_D + PROUD + 0.0004;
+  // The Pro Max home screen's grid: four columns of 64 pt icons across 440 pt,
+  // about 34 pt apart.
+  const ICON_GAP = 0.0055;
+  const SCREEN_Y = SCREEN_TOP + 0.0004;
 
   const DOCK_R = 0.0034;                 // a soft rounding, not a full pill
-  const dock = slab(ICON * 4 + ICON_GAP * 5, DOCK_L, 0.0002, DOCK_R,
-    M.dock, 'iphone-dock', body);
+  const DOCK_W = ICON * 4 + ICON_GAP * 3 + 0.006;
   const dockZ = -(DISPLAY_L / 2) + DOCK_INSET + DOCK_L / 2;
-  dock.position.set(0, SCREEN_Y, dockZ);
+  // Liquid Glass, drawn by the same pane the Now Playing card is. Transparent like
+  // the icons on it, so it is drawn first and they after.
+  const dock = glassPanel(body, DOCK_W, DOCK_L, DOCK_R / DOCK_W, 'iphone-dock').mesh;
+  dock.position.set(0, SCREEN_Y - 0.0001, dockZ);
+  dock.renderOrder = 0;
 
   // ---- the page indicator, just above the dock ---------------------------
   // iOS's row of dots, one per home screen page, the current page's dot lit
@@ -272,7 +240,7 @@ export function buildIphone15Pro() {
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 8;
       // Extruded UVs are the shape's own meters, so the art is scaled to the
-      // tile and offset by a half — the same trap as the wallpaper above.
+      // tile and offset by a half, or it lands half a meter off the tile.
       tex.center.set(0, 0);
       tex.repeat.set(1 / ICON, 1 / ICON);
       tex.offset.set(0.5, 0.5);
@@ -296,6 +264,7 @@ export function buildIphone15Pro() {
     const x = (i - 1.5) * (ICON + ICON_GAP);
     const icon = slab(ICON, ICON, 0.0002, 0.0028, mat, `iphone-dock-icon-${i + 1}`, body);
     icon.position.set(x, SCREEN_Y + 0.0001, dockZ);
+    icon.renderOrder = 1;
   });
 
   // ---- the Dynamic Island ------------------------------------------------
@@ -309,8 +278,8 @@ export function buildIphone15Pro() {
   const ISLAND_TOP_Y = SCREEN_Y;
   const island = slab(ISLAND_W, ISLAND_L, 0.0004, ISLAND_L / 2, M.island,
     'iphone-dynamic-island', body);
-  // About 11 mm down from the phone's top edge, where it actually sits.
-  const ISLAND_Z = IPHONE_H / 2 - 0.011;
+  // Right over the model's own island.
+  const ISLAND_Z = MODEL_ISLAND_Y * MODEL_SCALE;
   island.position.set(0, ISLAND_TOP_Y, ISLAND_Z);
 
   // The front camera in one end of the pill and the Face ID dot in the other,
@@ -333,6 +302,7 @@ export function buildIphone15Pro() {
     { file: 'Whatsapp_iOS.png', label: 'WhatsApp' },
   ].reverse();   // on-screen order reversed, as the dock's list is
 
+  // Just above the dock.
   const HOME_Z = dockZ + 0.026;
   const LABEL_W = ICON * 1.7;
 
@@ -350,7 +320,7 @@ export function buildIphone15Pro() {
     c.fillStyle = '#ffffff';
     const draw = () => c.fillText(text, canvas.width / 2, canvas.height / 2);
     c.shadowColor = 'rgba(0, 0, 0, 0.85)';
-    c.shadowBlur = px * 0.32;
+    c.shadowBlur = px * 0.22;
     draw();
     draw();
     c.shadowBlur = 0;
@@ -542,79 +512,6 @@ export function buildIphone15Pro() {
   // Its parts are in `phonePlayer.js`; what it plays is in `resume/phonePlayer.js`, which
   // finds the card through the handle left on the root here.
   root.userData.player = buildPhonePlayer(body, { screenY: SCREEN_Y });
-
-  // ---- camera plateau, on the back (pointing down, face-up) --------------
-  const plateau = slab(BUMP, BUMP, BUMP_H, 0.009, M.backGlass,
-    'iphone-camera-plateau', body);
-  plateau.position.set(-(IPHONE_W / 2 - BUMP / 2 - 0.005), -BUMP_H / 2,
-    IPHONE_H / 2 - BUMP / 2 - 0.005);
-
-  // The three lenses in their triangle on the plateau, each a titanium ring
-  // around dark glass, standing proud of it.
-  const LENS = [
-    { name: 'main', x: -0.0105, z: 0.0105, r: 0.0072 },
-    { name: 'ultrawide', x: -0.0105, z: -0.0105, r: 0.0072 },
-    { name: 'telephoto', x: 0.0105, z: 0.0105, r: 0.0072 },
-  ];
-  LENS.forEach(({ name, x, z, r }) => {
-    const ring = add(new THREE.CylinderGeometry(r, r, 0.0016, 24), M.lensRing,
-      `iphone-lens-${name}`, body);
-    ring.position.set(plateau.position.x + x, -BUMP_H - 0.0008,
-      plateau.position.z + z);
-    const lensGlass = add(new THREE.CylinderGeometry(r - 0.0018, r - 0.0018, 0.0018, 24),
-      M.lensGlass, `iphone-lens-${name}-glass`, body);
-    lensGlass.position.set(ring.position.x, -BUMP_H - 0.0012, ring.position.z);
-  });
-
-  // The flash and the LiDAR scanner, on the plateau's free corner.
-  const flash = add(new THREE.CylinderGeometry(0.0028, 0.0028, 0.0006, 16), M.flash,
-    'iphone-flash', body);
-  flash.position.set(plateau.position.x + 0.0105, -BUMP_H - 0.0003,
-    plateau.position.z - 0.0045);
-  const lidar = add(new THREE.CylinderGeometry(0.0022, 0.0022, 0.0006, 16), M.dark,
-    'iphone-lidar', body);
-  lidar.position.set(plateau.position.x + 0.0105, -BUMP_H - 0.0003,
-    plateau.position.z - 0.0135);
-
-  // ---- side buttons ------------------------------------------------------
-  // Each is a shallow bar standing just proud of the band. The Action button
-  // and the volume pair are on the left, the power button on the right.
-  const button = (name, side, z, len) => {
-    const b = add(new THREE.BoxGeometry(0.0012, 0.0032, len), M.titanium,
-      `iphone-button-${name}`, body);
-    b.position.set(side * (IPHONE_W / 2 + 0.0004), IPHONE_D / 2, z);
-    return b;
-  };
-  button('action', -1, IPHONE_H / 2 - 0.031, 0.0085);
-  button('volume-up', -1, IPHONE_H / 2 - 0.048, 0.0125);
-  button('volume-down', -1, IPHONE_H / 2 - 0.065, 0.0125);
-  button('power', 1, IPHONE_H / 2 - 0.052, 0.0245);
-
-  // ---- USB-C, centred on the bottom edge ---------------------------------
-  // The real port is a stadium: its short ends are half-circles, not corners.
-  // slab() rounds a shape lying flat, and this one stands up in the phone's
-  // end, so the rounded rectangle is drawn here in the x-y plane and extruded
-  // straight into the body along z — radius half the height, which is what
-  // turns the ends into semicircles rather than just softening them.
-  const USB_W = 0.0092, USB_H = 0.0028, USB_DEPTH = 0.0018;
-  const usbShape = new THREE.Shape();
-  const uhw = USB_W / 2, uhh = USB_H / 2, ur = uhh;
-  usbShape.moveTo(-uhw + ur, -uhh);
-  usbShape.lineTo(uhw - ur, -uhh);
-  usbShape.quadraticCurveTo(uhw, -uhh, uhw, 0);
-  usbShape.quadraticCurveTo(uhw, uhh, uhw - ur, uhh);
-  usbShape.lineTo(-uhw + ur, uhh);
-  usbShape.quadraticCurveTo(-uhw, uhh, -uhw, 0);
-  usbShape.quadraticCurveTo(-uhw, -uhh, -uhw + ur, -uhh);
-  usbShape.closePath();
-  const usbGeo = new THREE.ExtrudeGeometry(usbShape, {
-    depth: USB_DEPTH, bevelEnabled: false, curveSegments: 8,
-  });
-  // Extruded along +z from the shape's plane; pull it back half its depth so
-  // the port is centred on its own origin like every other part here.
-  usbGeo.translate(0, 0, -USB_DEPTH / 2);
-  const usb = add(usbGeo, M.dark, 'iphone-usb-c', body);
-  usb.position.set(0, IPHONE_D / 2, -(IPHONE_H / 2 - 0.0006));
 
   return root;
 }

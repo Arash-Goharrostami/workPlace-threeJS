@@ -36,13 +36,12 @@ const MAX_PIXEL_RATIO = 1.5;
  * cube appears already mixed. Then the same turns undone in reverse, `MOVE_MS` +
  * `GAP_MS` each, let through by two gates: the load's progress — the props being
  * placed, the bar's second phase — and a clock: the solve takes at least
- * `SOLVE_MIN_MS`, so on a fast connection there is still something to watch. 12 moves
- * at 330 ms fit that floor exactly.
+ * `SOLVE_MIN_MS`, so on a fast connection there is still something to watch.
  */
-const SCRAMBLE = 12;
+const SCRAMBLE = 8;
 const MOVE_MS = 260;
 const GAP_MS = 70;
-const SOLVE_MIN_MS = 4000;
+const SOLVE_MIN_MS = 1600;
 /** The cube is chrome in the source; this takes the edge off the mirror. */
 const ROUGHNESS_MIN = 0.45;
 const ENV_INTENSITY = 0.7;

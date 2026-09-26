@@ -90,6 +90,9 @@ export async function addMouseArea(parent, desk) {
     padBox.max.y,
     padCentre.z + MOUSE_OFFSET.y
   ));
+  // Where it was put down, for `mouseClick.js`: a click nudges it about this spot, never
+  // about wherever the last nudge left it, so it cannot wander off the pad.
+  mouse.userData.home = { position: mouse.position.clone(), yaw: mouse.rotation.y };
 
   return { pad, mouse };
 }

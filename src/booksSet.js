@@ -38,7 +38,8 @@ const BOOKS = [
   { name: 'Set_Book_3', node: 'Book_3', across: 17, position: [132.0, 85.5, -44.9], rotation: [0, -171.3, 90] },
   // Under Daisy Darker.
   { name: 'Set_Book_4', node: 'Book_4', across: 16, position: [134.1, 85.5, -23.9], rotation: [0, 164.6, 90] },
-  // The one open book, lying on the left side of the desk.
+  // The one open book, lying on the left side of the desk — dressed as the car
+  // magazine by `magazine.js`, which finds it by this name.
   { name: 'Set_OpenBook_2', node: 'Open_Book_2', across: 20, position: [-50.1, 85.5, -65.7], rotation: [0, 7.6, 0], scale: [1.189, 1.067, 1.196] },
 ];
 

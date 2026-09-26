@@ -42,6 +42,7 @@ let context = null;
 let buffer = null;
 let room = null;
 let lastSlot = -1;
+let loaded = null;
 
 /**
  * A small room's impulse: stereo noise dying away exponentially, run through a
@@ -69,7 +70,7 @@ function roomImpulse() {
 function open() {
   if (context || !Context) return;
   context = new Context();
-  audioBytes(CLIP_URL)
+  loaded = audioBytes(CLIP_URL)
     .then((data) => context.decodeAudioData(data))
     .then((decoded) => { buffer = decoded; })
     .catch(() => {});
@@ -94,6 +95,16 @@ function open() {
 }
 
 export const cubeSound = {
+  /**
+   * Opens the context (again, after `stop()`) and resolves once the clip is decoded, so
+   * a turn asked for on the desk's first click is heard rather than dropped.
+   */
+  ready() {
+    open();
+    if (context?.state === 'suspended') context.resume().catch(() => {});
+    return loaded ?? Promise.resolve();
+  },
+
   /** One layer turn. Silent until the page has been touched. */
   turn() {
     open();
@@ -125,5 +136,6 @@ export const cubeSound = {
     context = null;
     buffer = null;
     room = null;
+    loaded = null;
   },
 };

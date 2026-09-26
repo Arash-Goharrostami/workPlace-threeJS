@@ -3,9 +3,12 @@ import { loadGLB } from './gltfLoader.js';
 
 /**
  * A wooden chess set standing on the desk, pieces in their opening ranks. Run
- * `npm run convert Chess_Set` to (re-)import it and `npm run shrink chessSet 512 75 0.08`
- * to bring it back to 692 KB — the source is 1.55 M triangles and 50 MB, authored for a
- * turntable, and eight per cent of that is still 48 K triangles for a 30 cm prop.
+ * `npm run convert Chess_Set` to (re-)import it and
+ * `npm run shrink -- chessSet 512 75 0.08 --size Chess_board_baseColor=2048` to bring it
+ * back to 1.2 MB — the source is 1.55 M triangles and 50 MB, authored for a turntable,
+ * and eight per cent of that is still 48 K triangles for a 30 cm prop. The board's colour
+ * alone stays at 2048: the camera comes down onto it to play, and at 512 the squares
+ * went soft.
  *
  * Every piece is a mesh of its own and the names survive the shrink, which the game
  * will lean on: `Piece_01_*` are the pawns, `_02_` rooks, `_03_` knights, `_04_` bishops
@@ -123,6 +126,8 @@ function lightenSquares(map) {
   lifted.repeat.copy(map.repeat);
   lifted.offset.copy(map.offset);
   lifted.channel = map.channel;
-  lifted.anisotropy = map.anisotropy;
+  // The board is played on up close and at a slant, where plain mipmapping smears the
+  // far squares; the room's other textures take 8 as well (see `loadModel.js`).
+  lifted.anisotropy = 8;
   return lifted;
 }

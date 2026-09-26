@@ -114,13 +114,26 @@ const coarse = args.includes('--coarse');
  */
 const onlyAt = args.indexOf('--only');
 const only = onlyAt >= 0 ? (args[onlyAt + 1] ?? '').split(',').filter(Boolean) : [];
+/**
+ * `--size prefix=px,prefix=px` gives the images whose name starts with a prefix a size
+ * of their own instead of `maxTextureSize`, for a model where one surface is looked at
+ * far closer than the rest. `chessSet.glb` is the case: the camera comes down onto the
+ * board to play, and at the 512 that suits the pieces its squares went to mush, so
+ * `--size Chess_board_baseColor=2048` keeps the board sharp and leaves the pieces be.
+ */
+const sizesAt = args.indexOf('--size');
+const sizes = (sizesAt >= 0 ? (args[sizesAt + 1] ?? '').split(',') : [])
+  .filter(Boolean)
+  .map((pair) => pair.split('='))
+  .map(([prefix, px]) => ({ prefix, px: Number(px) }));
+const valueAt = new Set([onlyAt, sizesAt].filter((i) => i >= 0).map((i) => i + 1));
 const [target, sizeArg = '1024', qualityArg = '85', ratioArg = ''] = args.filter(
-  (arg, i) => !arg.startsWith('--') && !(onlyAt >= 0 && i === onlyAt + 1)
+  (arg, i) => !arg.startsWith('--') && !valueAt.has(i)
 );
 if (!target) {
   console.error(
     'Usage: shrink-glb.mjs <name|file.glb> [maxTextureSize] [quality] [simplifyRatio] ' +
-    '[--no-textures] [--coarse] [--only prefix,prefix]'
+    '[--no-textures] [--coarse] [--only prefix,prefix] [--size prefix=px,prefix=px]'
   );
   process.exit(1);
 }
@@ -208,7 +221,8 @@ for (const image of dropTextures ? [] : json.images ?? []) {
   const view = views[image.bufferView];
   const start = view.byteOffset ?? 0;
   const source = bin.subarray(start, start + view.byteLength);
-  const { bytes, mimeType, from, to } = resample(source);
+  const size = sizes.find(({ prefix }) => (image.name ?? '').startsWith(prefix))?.px ?? maxSize;
+  const { bytes, mimeType, from, to } = resample(source, size);
   if (!bytes || bytes.length >= source.length) continue;
   replaced.set(image.bufferView, bytes);
   image.mimeType = mimeType;
@@ -376,14 +390,14 @@ function resolveName(name) {
  * Returns empty when there was nothing to do, and the caller drops any result that came
  * out no smaller than the source, so a re-encode can never make a file worse.
  */
-function resample(source) {
+function resample(source, limit = maxSize) {
   const input = path.join(os.tmpdir(), 'shrink-in');
   const output = path.join(os.tmpdir(), 'shrink-out');
   fs.writeFileSync(input, source);
   try {
     const report = execFileSync(
       'python3',
-      ['-c', PYTHON, input, output, String(maxSize), String(quality)],
+      ['-c', PYTHON, input, output, String(limit), String(quality)],
       { encoding: 'utf8' }
     ).trim();
     if (report === 'skip') return {};

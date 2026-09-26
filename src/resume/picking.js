@@ -83,6 +83,9 @@ export function setupPicking({
         onOpen(key);
         return;
       }
+      // Something with a click of its own (the magazine, the guitar…) answers that
+      // click itself; the camera stays on what is being read.
+      if (hitsSwallowed()) return;
       if (reading && key !== reading) onDismiss();
       return;
     }

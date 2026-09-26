@@ -5,7 +5,13 @@ import { TIER, LOW, QUALITY, adaptiveResolution } from './quality.js';
 import { loadModel } from './loadModel.js';
 import { setupResume } from './resume/index.js';
 import { HOME_VIEW, introView, placeView } from './homeView.js';
-import { setupGuitarStrum } from './guitarStrum.js';
+import { createGuitarSound, setupGuitarStrum } from './guitarStrum.js';
+import { setupMagazine } from './magazine.js';
+import { setupMouseClick } from './mouseClick.js';
+import { setupMugClick } from './mugClick.js';
+import { setupClickSound } from './clickSound.js';
+import { setupRubiksClick } from './rubiksCube.js';
+import { setupPencilNudge } from './pencilNudge.js';
 import { ui } from './overlay.js';
 
 // The room has two modes. By default it is a resume: the props themselves are the
@@ -13,16 +19,21 @@ import { ui } from './overlay.js';
 // wireframe/grid panel and the drag-a-prop editor the scene was arranged with. Those are
 // pulled in with `import()` below, so Vite keeps them (and TransformControls, Stats) in a
 // chunk of their own that the resume never downloads.
-const DEBUG = new URLSearchParams(window.location.search).has('debug');
+const DEBUG = import.meta.env.DEV && new URLSearchParams(window.location.search).has('debug');
 /**
  * How far the orbit may tilt outside debug mode, in degrees of polar angle — 90 is eye
  * level, smaller is higher up. Both views the room rests at must fit between them: the
- * desk view (`INTRO_VIEW`, ~83°) and the wide shot a click on empty room goes back up
- * to (`HOME_VIEW`, 61°). A floor under the desk view clamps the camera off it the
- * moment the opening flight lands, and from there the click cannot find its way out.
+ * desk view (`INTRO_VIEW`, ~83°) and the wide shot the view button goes back up to
+ * (`HOME_VIEW`, 61°). A floor under the desk view clamps the camera off it the moment
+ * the opening flight lands, and from there the camera cannot find its way out.
  */
 const LOWEST_POLAR = 96;
 const HIGHEST_POLAR = 35;
+// How long the camera sits still, in ms, before the intro card returns (see the
+// `controls` `change` listener below) and, on a phone, before the room starts its
+// own slow idle pan (see `resume/idleOrbit.js`) — one delay for both, so tuning it
+// tunes when the room comes back to life either way.
+const INTRO_RETURN_MS = 2500;
 document.body.classList.toggle('is-debug', DEBUG);
 // The resume's chrome stays hidden from the first frame until the opening click (see
 // `ui.begin()`); added here rather than after the load, or it flashes during the fade.
@@ -118,8 +129,39 @@ let resume = null;
 loadModel({ scene, camera, controls, environment, ui }).then((model) => {
   environment.refreshShadows();
   if (!model) return;
-  // In both modes: the guitar answers a click whatever else the room is doing.
-  setupGuitarStrum({ camera, canvas: renderer.domElement, guitar: model.getObjectByName('Guitar_on_stand') });
+  // In both modes: the guitar answers a click whatever else the room is doing — except
+  // while the camera is down on it, where `guitarPlay.js` plays it instead.
+  const guitarSound = createGuitarSound();
+  setupGuitarStrum({
+    camera, canvas: renderer.domElement, guitar: model.getObjectByName('Guitar_on_stand'),
+    sound: guitarSound, enabled: () => !(resume?.playingGuitar ?? false),
+  });
+  // …and so does the magazine, turning a page.
+  setupMagazine({ camera, canvas: renderer.domElement, model });
+  // …and the mouse, clicking and shifting a little on its pad.
+  setupMouseClick({
+    camera, canvas: renderer.domElement, mouse: model.getObjectByName('Magic_Mouse'),
+    onMoved: () => environment.refreshShadows(),
+  });
+  // …and the mug, with a click of its own.
+  setupMugClick({ camera, canvas: renderer.domElement, mug: model.getObjectByName('Blender_mug') });
+  // …and the headphones and both HomePods, with a chat chime: koiroylers' "live chat",
+  // cut to its first 1.40 s (the rest was silence), mono at 64 kbps; the original is in
+  // `tmp/books/`.
+  setupClickSound({
+    camera, canvas: renderer.domElement, url: 'audio/liveChat.mp3',
+    objects: ['AirPods_Max', 'HomePod_mini', 'HomePod_mini_2'].map((name) => model.getObjectByName(name)),
+  });
+  // …and the Rubik's cube, turning its top layer a quarter at a time.
+  setupRubiksClick({
+    camera, canvas: renderer.domElement, cube: model.getObjectByName('Rubiks_cube'),
+    onMoved: () => environment.refreshShadows(),
+  });
+  // …and the Pencil, shifting and turning a little where it lies.
+  setupPencilNudge({
+    camera, canvas: renderer.domElement, pencil: model.getObjectByName('Apple_Pencil'),
+    onMoved: () => environment.refreshShadows(),
+  });
   printer = model.getObjectByName('3D_printer');
   // The printer's motors need a gesture before a browser lets them be heard.
   const startPrinter = () => printer?.userData.startSound?.(camera);
@@ -143,6 +185,8 @@ loadModel({ scene, camera, controls, environment, ui }).then((model) => {
       onSound: (muted) => printer?.userData.setSoundMuted?.(muted),
       // Down on a prop, the printer drops to a murmur; back in the room it comes up.
       onFocus: (down) => printer?.userData.setSoundDucked?.(down),
+      idleMs: INTRO_RETURN_MS,
+      guitarSound,
     });
     // Parked high over the room while the welcome card is up, so that Start reveals the
     // camera sinking to the home view, with the prompt opening while it still settles.
@@ -244,16 +288,20 @@ let activeUntil = 0;
 let dragging = false;
 const touch = () => { activeUntil = performance.now() + ACTIVE_HOLD; };
 renderer.domElement.addEventListener('pointermove', touch, { passive: true });
-renderer.domElement.addEventListener('wheel', touch, { passive: true });
-controls.addEventListener('start', () => { dragging = true; });
-controls.addEventListener('end', () => { dragging = false; touch(); });
+// `pointerdown` and `wheel` are real contact — a finger landing, a scroll — and also
+// cancel the idle pan (see `idleOrbit.js`); a bare `pointermove` is just the mouse
+// drifting over the canvas with no button down, which on a desktop resized narrow
+// fires constantly and would never let the pan run at all.
+renderer.domElement.addEventListener('pointerdown', () => { touch(); resume?.pokeIdle(); }, { passive: true });
+renderer.domElement.addEventListener('wheel', () => { touch(); resume?.pokeIdle(); }, { passive: true });
+controls.addEventListener('start', () => { dragging = true; resume?.pokeIdle(); });
+controls.addEventListener('end', () => { dragging = false; touch(); resume?.pokeIdle(); });
 
 // The intro blurb steps aside while the room is being orbited — down and out on the
 // first move, back once the camera has been still for `INTRO_RETURN_MS`: on a phone
 // as the droplet it first arrived as, on a desktop back up the way it went. Only the
 // user's own orbiting counts: a flight or the descent also moves the camera through
 // `controls.update()`, but the card is not its to hide.
-const INTRO_RETURN_MS = 2500;
 // The first name's width in its own ems, for the surname's slide up beside it (see
 // `body.orbiting` in index.html). A ratio, so it holds mid-transition too; taken once
 // the font is in, and again if the viewport changes the size it is set at.

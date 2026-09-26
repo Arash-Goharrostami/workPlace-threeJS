@@ -90,7 +90,7 @@ const ANCHORS = {
     lift: 0,
   },
   contact: {
-    prop: 'iPhone_15_Pro',
+    prop: 'iPhone_15_Pro_Max',
     label: 'Contact',
     view: 'Detail — iPhone',
     // Read off the phone's own screen, so the glass fills the viewport rather than

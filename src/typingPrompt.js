@@ -38,9 +38,9 @@ const KEY_LENGTH = 0.14;
 const VOLUME = 0.45;
 
 /** Typing pace in ms: a key every `BASE` give or take `JITTER`, a breath after a space. */
-const BASE = 85;
+const BASE = 90;
 const JITTER = 35;
-const SPACE_PAUSE = 60;
+const SPACE_PAUSE = 65;
 
 /** When each character of `message` lands, in ms from the start. */
 function timetable(message) {

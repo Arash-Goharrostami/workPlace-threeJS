@@ -9,7 +9,8 @@ import { dressWatchFace } from './watchFace.js';
  *
  * One module rather than four: they share a surface, a scale and a layout, and split
  * apart they would repeat the same seating code four times over. Three come from the
- * WorkDesk3D project as GLBs; the iPhone is built in code — see `iphone15Pro.js`.
+ * WorkDesk3D project as GLBs; the iPhone's model is dressed with a live screen in
+ * `iphone15Pro.js`.
  *
  * All four are authored in metres, lying flat on y = 0 and centred on their own
  * footprints, so like the other imports they need scaling and seating and no turn.
@@ -73,19 +74,19 @@ export async function addDeskApple(parent, deskBox, display) {
   const anchor = new THREE.Box3().setFromObject(display).getCenter(new THREE.Vector3());
   const surfaceY = deskBox.max.y;
 
-  const [ipad, pencil, watch] = await Promise.all([
+  const [ipad, pencil, watch, iphone] = await Promise.all([
     loadGLB(MODELS.ipad),
     loadGLB(MODELS.pencil),
     loadGLB(MODELS.watch),
+    buildIphone15Pro(),
   ]);
 
   const placed = {
     ipad: prepare(ipad.scene, 'iPad_Pro'),
     pencil: prepare(pencil.scene, 'Apple_Pencil'),
     watch: repaint(prepare(watch.scene, 'Apple_Watch_SE'), WATCH_REPAINT),
-    // Built in code, and already at this scene's units — so it is the one that must
-    // not be scaled again.
-    iphone: prepare(buildIphone15Pro(), 'iPhone_15_Pro', SCALE),
+    // Its own module loads the model and brings it to metres, like the others.
+    iphone: prepare(iphone, 'iPhone_15_Pro_Max'),
   };
   // The face lights up when the Contact section opens — see `resume/index.js`.
   dressWatchFace(placed.watch);

@@ -242,6 +242,34 @@
          desktop the panel has its own way back, so it never shows there. */
       #back-btn { position: fixed; left: 22px; top: 22px; z-index: 13; display: none; }
 
+      /* The chord bar: while the camera is down on the guitar (see `src/guitarPlay.js`),
+         a row of glass buttons along the bottom picks what the strings play. */
+      #chord-bar {
+        position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 12;
+        display: flex; gap: 2px; padding: 5px; border-radius: 999px;
+        max-width: calc(100vw - 44px); box-sizing: border-box;
+      }
+      #chord-bar[hidden] { display: none; }
+
+      /* Down on any prop (`body.dock-only`, set in `src/resume/index.js`) the dock stays — Menu, Contact, Sound — and the name, the
+         blurb and the view button go, so the dock moves up into the corner they held. */
+      body.dock-only #intro h1, body.dock-only #intro-text, body.dock-only #play-btn { display: none; }
+      body.dock-only #dock { margin-top: 0; }
+      /* One glass pill of switches: one chord at a time stays lit, and pressing it again
+         lets go, back to the open strings (see `src/guitarPlay.js`). */
+      #chord-bar .chord {
+        flex: 1 1 0; min-width: 48px; height: 42px; padding: 0; border: 0;
+        display: grid; place-items: center; border-radius: 999px;
+        font: inherit; font-size: 15px; color: var(--ink-dim); background: transparent; cursor: pointer;
+        transition: color .2s ease, background .25s ease, box-shadow .25s ease;
+      }
+      #chord-bar .chord:hover { color: var(--ink); }
+      #chord-bar .chord.is-on {
+        color: #0b1220; font-weight: 600;
+        background: linear-gradient(180deg, rgba(255, 255, 255, .95), rgba(255, 255, 255, .72));
+        box-shadow: inset 0 1px 0 #fff, 0 0 14px rgba(255, 255, 255, .45), 0 4px 12px rgba(0, 0, 0, .35);
+      }
+
       /* The menu sheet: the sections, one row each, on glass above the dock. Slides up
          from the dock when Menu is pressed. */
       #menu {
@@ -251,6 +279,10 @@
         transition: opacity .25s ease, transform .25s ease;
       }
       #menu.is-open { opacity: 1; transform: translateY(0); pointer-events: auto; }
+      /* The chess card and the chord bar sit where the sheet opens, and above the dock's
+         layer — so they step aside while it is open rather than showing through it. */
+      #chess, #chord-bar { transition: opacity .25s ease; }
+      body:has(#menu.is-open) #chess, body:has(#menu.is-open) #chord-bar { opacity: 0; pointer-events: none; }
       .menu-item {
         display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 14px; text-align: left;
         font: inherit; font-size: 15px; font-weight: 500; color: var(--ink); cursor: pointer;
@@ -369,20 +401,52 @@
         position: fixed; left: 50%; bottom: 22px; z-index: 25; display: none;
         width: min(420px, calc(100vw - 48px)); padding: 12px 16px; box-sizing: border-box;
         transform: translateX(-50%); align-items: center; gap: 12px;
-        background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-        backdrop-filter: blur(16px);
       }
       #chess.is-open { display: flex; }
-      #chess p { flex: 1; margin: 0; color: var(--ink); font-size: 14px; line-height: 1.5; }
-      #chess select {
-        font: inherit; font-size: 13px; color: var(--ink); cursor: pointer;
-        padding: 5px 8px; background: rgba(255, 255, 255, .06);
-        border: 1px solid var(--line); border-radius: 8px;
+      #chess p[hidden] { display: none; }
+      /* No card behind it: the line sits straight on the room, with a shadow to hold it
+         off the desk, and the two controls are liquid glass like the dock. */
+      #chess p {
+        flex: 1; margin: 0; color: var(--ink); font-size: 14px; line-height: 1.5;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, .9), 0 0 12px rgba(0, 0, 0, .7);
       }
-      #chess .btn { margin: 0; white-space: nowrap; }
+      /* The level and the restart side by side on one line, the same 52px tall as the
+         dock's buttons so the two rows read as one set. */
+      #chess .controls { display: flex; align-items: center; gap: 10px; }
+      #chess select {
+        margin: 0; height: 52px; padding: 0 40px 0 20px; font: inherit; font-size: 15px;
+        color: var(--ink); white-space: nowrap; cursor: pointer; border-radius: 999px;
+        appearance: none; -webkit-appearance: none;
+      }
+      #chess select option { color: #0b1220; }
+      /* The select's own arrow went with `appearance`; a chevron drawn in its place. */
+      #chess .level { position: relative; display: inline-flex; }
+      #chess .level::after {
+        content: ''; position: absolute; right: 15px; top: 50%; width: 6px; height: 6px;
+        border: solid var(--ink); border-width: 0 1.5px 1.5px 0; pointer-events: none;
+        transform: translateY(-70%) rotate(45deg);
+      }
+
+      /* The "start again?" modal: a glass card over a dimmed room. */
+      #chess-confirm {
+        position: fixed; inset: 0; z-index: 40; display: none;
+        align-items: center; justify-content: center; padding: 16px;
+        background: rgba(0, 0, 0, .45);
+      }
+      #chess-confirm.is-open { display: flex; }
+      #chess-confirm > .glass { width: min(340px, 100%); padding: 22px 22px 18px; box-sizing: border-box; border-radius: 24px; }
+      #chess-confirm p { margin: 0; color: var(--ink); font-size: 17px; font-weight: 600; }
+      #chess-confirm p.sub { margin-top: 6px; color: var(--ink-dim); font-size: 14px; font-weight: 400; }
+      #chess-confirm .actions { display: flex; gap: 10px; margin-top: 20px; }
+      #chess-confirm .nav-btn { flex: 1; justify-content: center; padding: 12px 14px; font-size: 14px; }
+      #chess-confirm .nav-btn.is-strong { font-weight: 600; border-color: rgba(255, 255, 255, .8); }
       @media (max-width: 760px) {
-        #chess { flex-wrap: wrap; bottom: 16px; }
-        #chess p { flex-basis: 100%; }
+        /* Above the dock, which holds the bottom edge on a phone. */
+        /* Status over controls, both flush with the dock's left edge. */
+        #chess {
+          flex-direction: column; align-items: flex-start; gap: 10px;
+          left: 22px; right: 22px; width: auto; padding: 0; transform: none; bottom: 88px;
+        }
       }
 
       /* --------------------------------------------------------------- debug */
@@ -458,8 +522,15 @@
         #intro-text p { color: var(--ink); font-size: 15px; text-shadow: 0 1px 6px rgba(0, 0, 0, .9); }
         #intro-hint { margin-top: 8px !important; white-space: normal; color: var(--ink-dim) !important; }
         #dock { position: fixed; left: 22px; right: 22px; bottom: 20px; margin: 0; }
+        /* Above the dock, which keeps the bottom edge over the guitar too. */
+        /* Above the dock and flush with its edges. */
+        #chord-bar { left: 22px; right: 22px; bottom: 88px; transform: none; max-width: none; }
         #back-btn:not([hidden]) { display: inline-flex; }
         #menu { position: fixed; top: auto; left: 22px; right: 22px; bottom: 92px; margin: 0; }
+        /* Reading a section, the bottom sheet takes the foot of the screen: the dock
+           moves up beside the back button, and the menu opens down from it. */
+        body.reading #dock { top: 22px; bottom: auto; left: 84px; right: auto; }
+        body.reading #menu { top: 84px; bottom: auto; }
         .menu-item { padding: 13px 16px; font-size: 16px; }
         .panel {
           top: auto; left: 0; right: 0; width: auto; height: 72vh; padding: 30px 24px 60px;
@@ -493,6 +564,7 @@
     </div>
     <!-- Outside `#intro`, which is hidden while a section is open — exactly when this
          shows. Glyph filled in by `src/resume/index.js`. -->
+    <div id="chord-bar" hidden></div>
     <button id="back-btn" class="nav-btn is-icon glass" type="button" aria-label="Back" hidden></button>
 
     <!-- Wired by `src/resume/sheetPrompt.js`: shown on a click on the paper tablet's page. -->
@@ -505,8 +577,30 @@
     <!-- The chess game's status and controls — see `src/chess/game.js`. -->
     <div id="chess">
       <p data-status>Your move — you play white</p>
-      <select data-level aria-label="The room's level"></select>
-      <button class="btn btn-ghost" type="button" data-new>New game</button>
+      <div class="controls">
+        <span class="level"><select class="glass" data-level aria-label="The room's level"></select></span>
+        <button class="nav-btn is-icon glass" type="button" data-new aria-label="New game" title="New game">
+          <!-- `public/icons/refresh-2-svgrepo-com.svg`, inlined in the ink colour. -->
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M2.5 12C2.5 12.2761 2.72386 12.5 3 12.5C3.27614 12.5 3.5 12.2761 3.5 12H2.5ZM3.5 12C3.5 7.30558 7.30558 3.5 12 3.5V2.5C6.75329 2.5 2.5 6.75329 2.5 12H3.5ZM12 3.5C15.3367 3.5 18.2252 5.4225 19.6167 8.22252L20.5122 7.77748C18.9583 4.65062 15.7308 2.5 12 2.5V3.5Z" fill="currentColor"/>
+            <path d="M20.4716 2.42157V8.07843H14.8147" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M21.5 12C21.5 11.7239 21.2761 11.5 21 11.5C20.7239 11.5 20.5 11.7239 20.5 12L21.5 12ZM20.5 12C20.5 16.6944 16.6944 20.5 12 20.5L12 21.5C17.2467 21.5 21.5 17.2467 21.5 12L20.5 12ZM12 20.5C8.66333 20.5 5.77477 18.5775 4.38328 15.7775L3.48776 16.2225C5.04168 19.3494 8.26923 21.5 12 21.5L12 20.5Z" fill="currentColor"/>
+            <path d="M3.52844 21.5784L3.52844 15.9216L9.18529 15.9216" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Asked before a game under way is thrown away — see `src/chess/game.js`. -->
+    <div id="chess-confirm" role="dialog" aria-modal="true" aria-labelledby="chess-confirm-title">
+      <div class="glass">
+        <p id="chess-confirm-title">Start a new game?</p>
+        <p class="sub">The game in progress will be lost.</p>
+        <div class="actions">
+          <button class="nav-btn glass" type="button" data-no>Keep playing</button>
+          <button class="nav-btn glass is-strong" type="button" data-yes>New game</button>
+        </div>
+      </div>
     </div>
 
     <!-- Filled from `src/resume/content.js`, by `src/resume/panels.js`. -->
