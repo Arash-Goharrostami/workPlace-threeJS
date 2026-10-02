@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { maxAnisotropy } from './textures.js';
 import { loadGLB } from './gltfLoader.js';
 import { buildPhonePlayer, glassPanel } from './phonePlayer.js';
 
@@ -238,7 +239,7 @@ export async function buildIphone15Pro() {
 
       const tex = new THREE.CanvasTexture(cropped);
       tex.colorSpace = THREE.SRGBColorSpace;
-      tex.anisotropy = 8;
+      tex.anisotropy = maxAnisotropy();
       // Extruded UVs are the shape's own meters, so the art is scaled to the
       // tile and offset by a half, or it lands half a meter off the tile.
       tex.center.set(0, 0);
@@ -328,7 +329,7 @@ export async function buildIphone15Pro() {
 
     const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = 8;
+    tex.anisotropy = maxAnisotropy();
     const mat = keep(new THREE.MeshStandardMaterial({
       name: `iphone_${name}`, color: 0x000000, roughness: 0.4, metalness: 0,
       emissive: 0xffffff, emissiveIntensity: 1.0,
@@ -385,7 +386,7 @@ export async function buildIphone15Pro() {
     const c = canvas.getContext('2d');
     const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = 8;
+    tex.anisotropy = maxAnisotropy();
 
     const paint = () => {
       c.clearRect(0, 0, canvas.width, canvas.height);

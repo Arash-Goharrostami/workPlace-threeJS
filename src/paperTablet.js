@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { loadGLB } from './gltfLoader.js';
 import { drawPortfolioPage } from './resume/portfolioPage.js';
+import { TEXT_SCALE } from './quality.js';
+import { maxAnisotropy } from './textures.js';
 
 /**
  * An e-ink paper tablet lying on the desk's right-hand side, between the Apple pieces
@@ -107,13 +109,13 @@ export async function addPaperTablet(parent) {
  * result is marked `keepColor` so `darkenScene()` leaves the sheet white.
  */
 function pageMaterial(source) {
-  const canvas = drawPortfolioPage();
+  const canvas = drawPortfolioPage(TEXT_SCALE);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   // The page's UVs read a browser-oriented canvas correctly; leaving glTF's `flipY = false`
   // on this material mirrored the text top-to-bottom.
   texture.flipY = true;
-  texture.anisotropy = 8;
+  texture.anisotropy = maxAnisotropy();
 
   const material = source.clone();
   material.map = texture;

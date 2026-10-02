@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { LOW } from '../quality.js';
+import { TIER } from '../quality.js';
+import { maxAnisotropy } from '../textures.js';
 import { createNotesApp } from './notesApp.js';
 import { createTextEditApp } from './textEditApp.js';
 import { createStackApp } from './stackApp.js';
@@ -32,7 +33,7 @@ import { createStackApp } from './stackApp.js';
  * weak device gets three quarters of it: the screens are the room's biggest textures
  * after the shadow map, and at a phone's distance the type is still sharp.
  */
-const LONG_EDGE = LOW ? 1200 : 1600;
+const LONG_EDGE = { low: 1600, mid: 2048, high: 2560 }[TIER];
 
 /** Width of the scroll indicator down the panel's right edge, as a fraction. */
 const RAIL = 0.006;
@@ -509,6 +510,7 @@ export function setupScreens() {
       view.height = LONG_EDGE;
       const texture = new THREE.CanvasTexture(view);
       texture.colorSpace = THREE.SRGBColorSpace;
+      texture.anisotropy = maxAnisotropy();
 
       // A section marked `app` is a window rather than a page: `notesApp.js` owns what
       // is on the canvas, and everything below — the plane, its seating, its material —

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { loadGLB } from './gltfLoader.js';
+import { LOW } from './quality.js';
+import { maxAnisotropy } from './textures.js';
 
 /**
  * A composition of picture frames hung on the blank back wall, over the stretch to the
@@ -48,10 +50,10 @@ export const MODEL_URL = 'models/wallFrames.glb';
  * is one PIL call to undo, and the square keeps the proportions once the 31.6 x 23.4 cm
  * opening stretches it back:
  *
- *     im.convert('RGB').resize((768, 768), Image.LANCZOS).transpose(Image.TRANSVERSE)
+ *     rotate 90° clockwise, flip vertically, squash to 2048 × 2048
  *
- * from `tmp/originals/LPIC-3.pdf`, rasterised first with `sips -s format png -Z 1600` —
- * 63 KB as a q82 JPEG. The PDF stays out of `public/`, which is copied wholesale into
+ * from `tmp/originals/LPIC-3.pdf`, rasterised first with `sips -s format png -Z 2400` —
+ * 390 KB as a q85 JPEG. The PDF stays out of `public/`, which is copied wholesale into
  * `dist/`. Another frame taken from this pack will want its own UVs read the same way
  * rather than this same turn assumed.
  */
@@ -306,6 +308,7 @@ function reprint(frames) {
     const texture = loader.load(url);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.flipY = false;
+    texture.anisotropy = maxAnisotropy();
     if (material.map) {
       texture.wrapS = material.map.wrapS;
       texture.wrapT = material.map.wrapT;
@@ -349,7 +352,8 @@ function hang(frames, spec) {
   const height = y[1] - y[0];
 
   const canvas = document.createElement('canvas');
-  canvas.height = 1400;
+  // Certificates are read up close (`wallFrameFocus.js`): the sources are 2400 px now.
+  canvas.height = LOW ? 2048 : 2800;
   canvas.width = Math.round(canvas.height * (width / height));
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = spec.mat?.color ?? '#ffffff';
@@ -357,7 +361,7 @@ function hang(frames, spec) {
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8;
+  texture.anisotropy = maxAnisotropy();
 
   if (spec.draw) {
     spec.draw(ctx, canvas, canvas.height * (spec.mat?.margin ?? 0));

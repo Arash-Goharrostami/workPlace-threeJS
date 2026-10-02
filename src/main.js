@@ -1,8 +1,10 @@
+import './canvasCompat.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { setupEnvironment } from './environment.js';
 import { TIER, LOW, QUALITY, adaptiveResolution } from './quality.js';
 import { loadModel } from './loadModel.js';
+import { setMaxAnisotropy } from './textures.js';
 import { setupResume } from './resume/index.js';
 import { HOME_VIEW, introView, placeView } from './homeView.js';
 import { createGuitarSound, setupGuitarStrum } from './guitarStrum.js';
@@ -90,6 +92,7 @@ renderer.domElement.addEventListener('webglcontextlost', () => {
   report('The device ran out of graphics memory and the room went dark. Reload to try again.');
 });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, QUALITY.pixelRatio));
+setMaxAnisotropy(renderer);
 renderer.setSize(viewportSize().width, viewportSize().height);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -184,7 +187,10 @@ loadModel({ scene, camera, controls, environment, ui }).then((model) => {
       scene, camera, renderer, controls, model,
       onSound: (muted) => printer?.userData.setSoundMuted?.(muted),
       // Down on a prop, the printer drops to a murmur; back in the room it comes up.
-      onFocus: (down) => printer?.userData.setSoundDucked?.(down),
+      onFocus: (down) => {
+        printer?.userData.setSoundDucked?.(down);
+        resolution.reading(down);
+      },
       idleMs: INTRO_RETURN_MS,
       guitarSound,
     });

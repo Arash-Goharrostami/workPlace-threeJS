@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { maxAnisotropy } from './textures.js';
 import { loadGLB } from './gltfLoader.js';
 import { PANEL } from './proDisplay.js';
 import { loadFace } from './resume/screen.js';
@@ -40,7 +41,7 @@ const NOTE_SIZE = 7.6;
  * take precedence over `anchor`/`tilt`.
  */
 const NOTES = [
-  { text: 'English class\nSun & Wed', colour: 0xfff176, position: [8.2, 114.8, -107.6], rotation: [87, 90, 86] },
+  { text: 'English class\nSat & Wed', colour: 0xfff176, position: [8.2, 114.8, -107.6], rotation: [87, 90, 86] },
   { text: 'Remember:\n18 March!', colour: 0xfff176, position: [-0.4, 114.6, -107.4], rotation: [88.3, 90, 89] },
 ];
 
@@ -169,6 +170,6 @@ function paper(text) {
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8;
+  texture.anisotropy = maxAnisotropy();
   return texture;
 }

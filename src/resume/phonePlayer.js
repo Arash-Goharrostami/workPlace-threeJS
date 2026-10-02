@@ -11,7 +11,7 @@
  * and swapping `src` is what a phone does when you skip. Nothing ever autoplays — every
  * path to `play()` starts at a click, which is the only thing browsers will honour.
  *
- * The three tracks live in `public/audio/` re-encoded at 96 kbps with their tags stripped
+ * The tracks live in `public/audio/songs/` re-encoded at 96 kbps with their tags stripped
  * — about 40% of what they arrived as, and inaudibly different coming out of a 7 cm phone.
  * The originals are in `tmp/originals/audio/`; the title and artist on each card are what
  * the file's own tags said, and the cover is the art those tags carried, pulled out to
@@ -28,7 +28,7 @@
 
 const TRACKS = [
   {
-    file: 'audio/noSurprises.mp3',
+    file: 'audio/songs/noSurprises.mp3',
     cover: 'audio/covers/noSurprises.jpg',
     filename: "No Surprises - Juliana Chahayed.mp3",
     title: 'no surprises',
@@ -37,7 +37,7 @@ const TRACKS = [
     art: ['#f4ead6', '#b39a6f'],
   },
   {
-    file: 'audio/youreAllIWant.mp3',
+    file: 'audio/songs/youreAllIWant.mp3',
     cover: 'audio/covers/youreAllIWant.jpg',
     filename: "You're All I Want - Cigarettes After Sex.mp3",
     title: "you're all i want",
@@ -46,13 +46,31 @@ const TRACKS = [
     art: ['#ece7da', '#99a08b'],
   },
   {
-    file: 'audio/iDontKnowYouAnymore.mp3',
+    file: 'audio/songs/iDontKnowYouAnymore.mp3',
     cover: 'audio/covers/iDontKnowYouAnymore.jpg',
     filename: "i don't know you anymore - sombr.mp3",
     title: "i don't know you anymore",
     artist: 'sombr',
     mark: 'wave',
     art: ['#e2e9e1', '#8dae9d'],
+  },
+  {
+    file: 'audio/songs/churchBells.mp3',
+    cover: 'audio/covers/churchBells.jpg',
+    filename: 'Church Bells - Henry Morris.mp3',
+    title: 'church bells',
+    artist: 'henry morris',
+    mark: 'disc',
+    art: ['#ebe4d8', '#9c8f7e'],
+  },
+  {
+    file: 'audio/songs/sailorSong.mp3',
+    cover: 'audio/covers/sailorSong.jpg',
+    filename: 'Sailor Song - Gigi Perez.mp3',
+    title: 'sailor song',
+    artist: 'gigi perez',
+    mark: 'wave',
+    art: ['#e0e8ee', '#8299ab'],
   },
 ];
 

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { maxAnisotropy } from './textures.js';
 
 /**
  * The Now Playing card on the iPhone's screen — the iOS media widget, built the way the
@@ -332,7 +333,7 @@ function canvasPanel(parent, w, l, cw, ch, name) {
   const ctx = canvas.getContext('2d');
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
+  tex.anisotropy = maxAnisotropy();
 
   const mat = keep(new THREE.MeshStandardMaterial({
     name: `${name}_mat`, color: 0xffffff, roughness: 0.45, metalness: 0,
@@ -397,7 +398,48 @@ function textPanel(parent, w, cw, ch, name) {
  * the machine has, and this tile is 11 mm across, where a missing one is just a blank
  * square.
  */
-function drawArtwork({ ctx, canvas, tex }, track) {
+function drawArtwork(panel, track) {
+  const { canvas } = panel;
+  cancelAnimationFrame(Number(canvas.dataset.spinner) || 0);
+  canvas.dataset.track = track.cover ?? '';
+
+  if (!track.cover) {
+    drawPlaceholder(panel, track);
+    return;
+  }
+
+  // The real cover, or — while it is still on its way — a neutral tile with a turning
+  // arc rather than the placeholder, which read as the wrong cover until it was painted
+  // over. A track skipped before its image lands must not have that image paint over
+  // the next one's tile, so each step checks what the tile is showing now.
+  const image = cover(track.cover);
+  if (image.complete && image.naturalWidth) {
+    drawCover(panel, image);
+    return;
+  }
+
+  const current = () => canvas.dataset.track === track.cover;
+  const startedAt = performance.now();
+  const spin = (now) => {
+    if (!current()) return;
+    drawArtSpinner(panel, (now - startedAt) / 1000);
+    canvas.dataset.spinner = String(requestAnimationFrame(spin));
+  };
+  canvas.dataset.spinner = String(requestAnimationFrame(spin));
+
+  const settle = (paint) => () => {
+    if (!current()) return;
+    cancelAnimationFrame(Number(canvas.dataset.spinner) || 0);
+    paint();
+  };
+  image.addEventListener('load', settle(() => drawCover(panel, image)), { once: true });
+  // A cover that never arrives falls back to the drawn placeholder, not a tile left
+  // spinning for good.
+  image.addEventListener('error', settle(() => drawPlaceholder(panel, track)), { once: true });
+}
+
+/** The track's own wash with its mark drawn on it, for a track without a cover image. */
+function drawPlaceholder({ ctx, canvas, tex }, track) {
   const { width: w, height: h } = canvas;
   ctx.clearRect(0, 0, w, h);
 
@@ -421,28 +463,39 @@ function drawArtwork({ ctx, canvas, tex }, track) {
 
   ctx.restore();
   tex.needsUpdate = true;
+}
 
-  // The real cover, painted over the placeholder once it arrives. A track skipped before
-  // its image lands must not have that image paint over the next one's tile, so the
-  // load is compared against what the tile is showing now before it draws.
-  if (!track.cover) return;
-  const image = cover(track.cover);
-  const paint = () => {
-    if (canvas.dataset.track !== track.cover) return;
-    ctx.save();
-    // The mark left its own path behind, so the tile's corners are traced again.
-    rounded(ctx, w, h);
-    ctx.clip();
-    ctx.drawImage(image, 0, 0, w, h);
-    ctx.restore();
-    // A hairline of light round the cover, so it sits on the glass like the tiles do.
-    rounded(ctx, w, h);
-    rim(ctx, w, h, w * 0.012);
-    tex.needsUpdate = true;
-  };
-  canvas.dataset.track = track.cover;
-  if (image.complete && image.naturalWidth) paint();
-  else image.addEventListener('load', paint, { once: true });
+/** The downloaded cover, clipped to the tile's corners. */
+function drawCover({ ctx, canvas, tex }, image) {
+  const { width: w, height: h } = canvas;
+  ctx.clearRect(0, 0, w, h);
+  ctx.save();
+  rounded(ctx, w, h);
+  ctx.clip();
+  ctx.drawImage(image, 0, 0, w, h);
+  ctx.restore();
+  // A hairline of light round the cover, so it sits on the glass like the tiles do.
+  rounded(ctx, w, h);
+  rim(ctx, w, h, w * 0.012);
+  tex.needsUpdate = true;
+}
+
+/** The empty tile a cover is loading into: a soft grey square and an arc turning once a second. */
+function drawArtSpinner({ ctx, canvas, tex }, seconds) {
+  const { width: w, height: h } = canvas;
+  ctx.clearRect(0, 0, w, h);
+  rounded(ctx, w, h);
+  ctx.fillStyle = '#d9d6d0';
+  ctx.fill();
+  rim(ctx, w, h, w * 0.012);
+  const from = seconds * Math.PI * 2;
+  ctx.strokeStyle = 'rgba(30, 27, 22, 0.55)';
+  ctx.lineWidth = w * 0.035;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(w / 2, h / 2, w * 0.13, from, from + Math.PI * 1.5);
+  ctx.stroke();
+  tex.needsUpdate = true;
 }
 
 /** The tile's outline — a square with rounded corners — as the current path. */

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { loadFace } from './resume/screen.js';
+import { TIER } from './quality.js';
+import { maxAnisotropy } from './textures.js';
 
 /**
  * The story of the site, written on the *outer* face of the back wall — the side the
@@ -74,7 +76,7 @@ const SPECKLE_SIZE = 3.2;
 const WOBBLE = 0.6;
 
 /** Canvas pixels across the mural's width; the height follows the text. */
-const CANVAS_WIDTH = 2048;
+const CANVAS_WIDTH = { low: 2048, mid: 3072, high: 4096 }[TIER];
 
 /** Draws the mural and hangs it on the back wall's outer face. */
 export async function addWallStory(model) {
@@ -86,7 +88,7 @@ export async function addWallStory(model) {
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8;
+  texture.anisotropy = maxAnisotropy();
 
   const material = new THREE.MeshBasicMaterial({
     name: 'wall_story',

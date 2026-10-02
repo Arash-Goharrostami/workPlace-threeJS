@@ -67,11 +67,15 @@ function footerTop() {
   return PAGE_H - MARGIN - T.small * 2 - T.body;
 }
 
-/** Draws the sheet and returns the canvas. */
-export function drawPortfolioPage() {
+/** Canvas pixels per page unit; the sheet on the desk is drawn denser than the PDF. */
+let DENSITY = 1;
+
+/** Draws the sheet and returns the canvas, `density` times PAGE_W across. */
+export function drawPortfolioPage(density = 1) {
+  DENSITY = density;
   const canvas = document.createElement('canvas');
-  canvas.width = PAGE_W;
-  canvas.height = PAGE_H;
+  canvas.width = Math.round(PAGE_W * density);
+  canvas.height = Math.round(PAGE_H * density);
   const ctx = canvas.getContext('2d');
 
   // Lay it out until it fits: first with less copy, then with smaller type. The last
@@ -94,7 +98,7 @@ function layout(ctx, scale, level) {
   T = sizes(scale);
   LEVEL = level;
 
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.setTransform(DENSITY, 0, 0, DENSITY, 0, 0);
   ctx.textAlign = 'left';
   ctx.fillStyle = PAPER;
   ctx.fillRect(0, 0, PAGE_W, PAGE_H);
